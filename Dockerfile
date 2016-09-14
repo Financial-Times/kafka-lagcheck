@@ -13,7 +13,7 @@ RUN apk update \
   && export REPO_PATH="github.com/linkedin/Burrow" \
   && go get $REPO_PATH \
   && cd $GOPATH/src/${REPO_PATH} \
-  && gpm install \
+  && /gpm install \
   && go build \
   && mv Burrow /burrow-app \
   && apk del go git bzr \
