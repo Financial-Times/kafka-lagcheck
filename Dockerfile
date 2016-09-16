@@ -1,6 +1,7 @@
 FROM alpine:3.4
 
 ADD config/burrow.cfg /config/burrow.cfg
+ADD launch-burrow.sh /launch-burrow.sh
 
 RUN apk update \
   && apk add bash \
