@@ -23,4 +23,4 @@ RUN apk update \
   && rm -rf $GOPATH /var/cache/apk/* gpm \
   && ln -sf /dev/stdout /burrow.log
 
-CMD [ "/burrow-app --config /config/burrow.cfg" ]
+CMD [ "/launch-burrow.sh" ]
