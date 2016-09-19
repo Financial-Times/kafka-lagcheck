@@ -20,6 +20,7 @@ RUN apk update \
   && go install \
   && mv $GOPATH/bin/Burrow /burrow-app \
   && apk del go git bzr \
-  && rm -rf $GOPATH /var/cache/apk/* gpm
+  && rm -rf $GOPATH /var/cache/apk/* gpm \
+  && ln -sf /dev/stdout /burrow.log
 
 CMD [ "/launch-burrow.sh" ]
