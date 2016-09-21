@@ -3,7 +3,7 @@ FROM alpine:3.4
 ADD config/burrow.cfg /config/burrow.cfg
 ADD config/logging.cfg /config/logging.cfg
 ADD launch-burrow.sh /launch-burrow.sh
-ADD *.go /kafka-lagcheck
+ADD *.go /kafka-lagcheck/
 
 RUN apk update \
   && apk add bash \
@@ -21,8 +21,8 @@ RUN apk update \
   && go install \
   && mv $GOPATH/bin/Burrow /burrow-app \
   && export LAGCHECK_REPO_PATH="github.com/Financial-Times/kafka-lagcheck" \
-  && mkdir -p $LAGCHECK_REPO_PATH/src/${REPO_PATH} \
-  && cp -r kafka-lagcheck/*.go $GOPATH/src/${LAGCHECK_REPO_PATH} \
+  && mkdir -p $GOPATH/src/${LAGCHECK_REPO_PATH} \
+  && cp -r /kafka-lagcheck/*.go $GOPATH/src/${LAGCHECK_REPO_PATH}/ \
   && cd $GOPATH/src/${LAGCHECK_REPO_PATH} \
   && go get -t ./... \
   && go build \
