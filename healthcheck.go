@@ -21,7 +21,7 @@ func NewHealthcheck(httpClient *http.Client, kafkaHost string, consumerGroups []
 		httpClient:     httpClient,
 		kafkaHost:      kafkaHost,
 		consumerGroups: consumerGroups,
-		checkPrefix:    "http://" + kafkaHost + "/v2/kafka/local/consumer/",
+		checkPrefix:    "http://localhost:8081/v2/kafka/local/consumer/",
 	}
 }
 
