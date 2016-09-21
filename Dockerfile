@@ -19,7 +19,7 @@ RUN apk update \
   && git checkout v0.1.1 \
   && /gpm install \
   && go install \
-  && mv $GOPATH/bin/Burrow /burrow-app \
+  && mv $GOPATH/bin/Burrow / \
   && export LAGCHECK_REPO_PATH="github.com/Financial-Times/kafka-lagcheck" \
   && mkdir -p $GOPATH/src/${LAGCHECK_REPO_PATH} \
   && cp -r /kafka-lagcheck/*.go $GOPATH/src/${LAGCHECK_REPO_PATH}/ \

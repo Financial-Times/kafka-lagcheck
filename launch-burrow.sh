@@ -6,4 +6,4 @@ sed -i "s KAFKA_PORT $KAFKA_PORT " /config/burrow.cfg
 
 cat /config/burrow.cfg
 
-exec ./kafka-lagcheck && ./burrow-app --config /config/burrow.cfg
+exec ./Burrow --config /config/burrow.cfg & ./kafka-lagcheck
