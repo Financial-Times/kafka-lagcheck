@@ -1,4 +1,4 @@
-# ft-burrow - Kafka Consumer Lag Checking
+# kafka-lagcheck - Kafka Consumer Lag Checking
 
 based on [github.com/linkedin/Burrow](https://github.com/linkedin/Burrow), just our specific in-house configuration.
 
