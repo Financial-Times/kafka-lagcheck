@@ -30,7 +30,6 @@ RUN apk update \
   && rm -rf /kafka-lagcheck \
   && mv /kafka-lagcheck-app /kafka-lagcheck \
   && apk del go git bzr \
-  && rm -rf $GOPATH /var/cache/apk/* gpm \
-  && ln -sf /dev/stdout /burrow.log
+  && rm -rf $GOPATH /var/cache/apk/* gpm
 
 CMD [ "/launch-burrow.sh" ]

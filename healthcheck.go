@@ -75,7 +75,7 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Couldn't unmarshall burrow's response: %d %d", string(body), err))
 	}
-	if fullStatus["error"] != "false" {
+	if fullStatus["error"] != false {
 		return errors.New(fmt.Sprintf("Burrow's status response is an error: %d", string(body)))
 	}
 	status := fullStatus["status"].(map[string]interface{})
