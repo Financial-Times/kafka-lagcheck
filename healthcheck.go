@@ -52,7 +52,7 @@ func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 		Name:             "Consumer group " + consumer + " is lagging.",
 		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/extra-publishing/",
 		Severity:         1,
-		TechnicalSummary: "Consumer group " + consumer + " is lagging.",
+		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
 		Checker:          func() error { return h.checkConsumerGroupForLags(consumer) },
 	}
 }

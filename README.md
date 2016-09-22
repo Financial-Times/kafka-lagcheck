@@ -30,6 +30,8 @@ Additionally we're running a go app, that is only serving as a forwarder, it mak
 
 `curl localhost:8080/__health`
 
+## Info
+
 In our cluster system the container is set up having both these applications inside. Logs of Burrow are in `burrow.out`. Logs of the go app go to stdout.
 
 See also:
