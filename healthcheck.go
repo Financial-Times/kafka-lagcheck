@@ -7,6 +7,7 @@ import (
 	"github.com/Financial-Times/go-fthealth"
 	"io/ioutil"
 	"net/http"
+	"os"
 )
 
 type Healthcheck struct {
@@ -45,10 +46,10 @@ func (h *Healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
-		Name:             "Consumer Group " + consumer + " is Lagging",
+		Name:             "Consumer group " + consumer + " is lagging.",
 		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/extra-publishing/",
 		Severity:         1,
-		TechnicalSummary: "Consumer Group " + consumer + " is Lagging",
+		TechnicalSummary: "Consumer group " + consumer + " is lagging.",
 		Checker:          func() error { return h.checkConsumerGroupForLags(consumer) },
 	}
 }
@@ -56,12 +57,12 @@ func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
 	if err != nil {
-		warnLogger.Printf("Could not connect to proxy: %v", err.Error())
+		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
 		return err
 	}
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
-		warnLogger.Printf("Could not connect to proxy: %v", err.Error())
+		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
 		return err
 	}
 	defer resp.Body.Close()
@@ -82,5 +83,7 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	if status["status"] != "OK" {
 		return errors.New(fmt.Sprintf("%d on kafka consumer lag. Further info at: __ft-burrow/v2/kafka/local/consumer/%d/status", status["status"], consumerGroup))
 	}
+	infoLogger.Println("bye")
+	os.Exit(1)
 	return nil
 }

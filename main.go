@@ -34,7 +34,6 @@ func main() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
 		httpClient := &http.Client{}
 		healthCheck := NewHealthcheck(httpClient, *kafkaHost, *consumerGroups)
-		//httpClient.Get("http://example.com")
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth())
 		router.HandleFunc("/__gtg", healthCheck.gtg)
