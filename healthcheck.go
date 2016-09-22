@@ -19,7 +19,7 @@ type Healthcheck struct {
 }
 
 func NewHealthcheck(httpClient *http.Client, kafkaHost string, consumerGroups []string) *Healthcheck {
-	failures := make(chan bool, 3)
+	failures := make(chan bool, 3 * len(consumerGroups))
 	return &Healthcheck{
 		httpClient:     httpClient,
 		kafkaHost:      kafkaHost,
@@ -95,7 +95,7 @@ func (h *Healthcheck) accumulateFailure() {
 	select {
 	case h.burrowFailures <- true:
 	default:
-		errorLogger.Println("Will exit app and container with failure, to promote restarting itself and Burrow, hopefully being able to connect after.")
+		errorLogger.Println("Will exit app and container with failure, to promote restarting itself. Burrow will have another chance reconnecting to Kafka after.")
 		os.Exit(1)
 	}
 }
