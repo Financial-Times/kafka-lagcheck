@@ -15,14 +15,17 @@ type Healthcheck struct {
 	kafkaHost      string
 	consumerGroups []string
 	checkPrefix    string
+	burrowFailures chan bool
 }
 
 func NewHealthcheck(httpClient *http.Client, kafkaHost string, consumerGroups []string) *Healthcheck {
+	failures := make(chan bool, 3)
 	return &Healthcheck{
 		httpClient:     httpClient,
 		kafkaHost:      kafkaHost,
 		consumerGroups: consumerGroups,
 		checkPrefix:    "http://localhost:8081/v2/kafka/local/consumer/",
+		burrowFailures: failures,
 	}
 }
 
@@ -58,11 +61,12 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
+
 		return err
 	}
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
-		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
+		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err
 	}
 	defer resp.Body.Close()
@@ -83,7 +87,24 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	if status["status"] != "OK" {
 		return errors.New(fmt.Sprintf("%d on kafka consumer lag. Further info at: __ft-burrow/v2/kafka/local/consumer/%d/status", status["status"], consumerGroup))
 	}
-	infoLogger.Println("bye")
-	os.Exit(1)
 	return nil
+}
+
+func (h *Healthcheck) accumulateFailure() {
+	select {
+	case h.burrowFailures <- true:
+	default:
+		errorLogger.Println("Will exit app and container with failure, to promote restarting itself and Burrow, hopefully being able to connect after.")
+		os.Exit(1)
+	}
+}
+
+func (h *Healthcheck) clearFailures() {
+	for {
+		select {
+		case <- h.burrowFailures:
+		default:
+			return
+		}
+	}
 }
