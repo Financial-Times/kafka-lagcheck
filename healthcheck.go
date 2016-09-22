@@ -61,12 +61,12 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
-
 		return err
 	}
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
+		h.accumulateFailure()
 		return err
 	}
 	defer resp.Body.Close()
@@ -74,6 +74,7 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
 		return errors.New(errMsg)
 	}
+	h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
 	fullStatus := make(map[string]interface{})
 	err = json.Unmarshal(body, &fullStatus)
