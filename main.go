@@ -23,17 +23,23 @@ func main() {
 		Desc:   "Hostname of the machine kafka and burrow (same) runs on (e.g. ip-172-24-91-192.eu-west-1.compute.internal)",
 		EnvVar: "KAFKA_HOST",
 	})
-	consumerGroups := app.Strings(cli.StringsOpt{
-		Name:   "consumer-groups",
+	whitelistedTopics := app.Strings(cli.StringsOpt{
+		Name:   "whitelisted-topics",
 		Value:  []string{},
-		Desc:   "Comma-separated list of kafka consumer group names that we need to check for lags. (e.g. nativeIngesterCms,nativeIngesterMetadata)",
-		EnvVar: "CONSUMER_GROUPS",
+		Desc:   "Comma-separated list of kafka topics that we do not need to check for lags. (e.g. Concept,AnotherQ)",
+		EnvVar: "WHITELISTED_TOPICS",
+	})
+	lagTolerance := app.Int(cli.IntOpt{
+		Name:   "lag-tolerance",
+		Value:  0,
+		Desc:   "Number of messages that can pile up before warning. (e.g. 5)",
+		EnvVar: "LAG_TOLERANCE",
 	})
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
 		httpClient := &http.Client{}
-		healthCheck := NewHealthcheck(httpClient, *kafkaHost, *consumerGroups)
+		healthCheck := NewHealthcheck(httpClient, *kafkaHost, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth())
 		router.HandleFunc("/__gtg", healthCheck.gtg)
