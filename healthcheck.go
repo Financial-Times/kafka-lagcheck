@@ -26,7 +26,7 @@ func NewHealthcheck(httpClient *http.Client, kafkaHost string, whitelistedTopics
 	return &Healthcheck{
 		httpClient:          httpClient,
 		kafkaHost:           kafkaHost,
-		checkPrefix:         "http://" + kafkaHost + ":8081/v2/kafka/local/consumer/",
+		checkPrefix:         "http://127.0.0.1:8081/v2/kafka/local/consumer/",
 		whitelistedTopics:   whitelistedTopics,
 		burrowFailuresCount: failuresCount,
 		lagTolerance:        lagTolerance,
@@ -163,7 +163,7 @@ func (h *Healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
-		h.accumulateFailure()
+		//h.accumulateFailure()
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -171,7 +171,7 @@ func (h *Healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
 		return nil, errors.New(errMsg)
 	}
-	h.clearFailures()
+	//h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
 	return h.parseConsumerGroups(body)
 }
