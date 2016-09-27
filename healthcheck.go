@@ -26,7 +26,7 @@ func NewHealthcheck(httpClient *http.Client, kafkaHost string, whitelistedTopics
 	return &Healthcheck{
 		httpClient:          httpClient,
 		kafkaHost:           kafkaHost,
-		checkPrefix:         "http://localhost:8081/v2/kafka/local/consumer/",
+		checkPrefix:         "http://" + kafkaHost + ":8081/v2/kafka/local/consumer/",
 		whitelistedTopics:   whitelistedTopics,
 		burrowFailuresCount: failuresCount,
 		lagTolerance:        lagTolerance,
