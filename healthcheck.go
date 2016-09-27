@@ -111,7 +111,6 @@ func (h *Healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		//warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
 		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer status: %v %v", string(body), err))
 	}
 	if statusError {
@@ -183,7 +182,6 @@ func (h *Healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 	jq := jsonq.NewQuery(fullConsumers)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer list response: %v %v", string(body), err.Error())
 		return nil, errors.New(fmt.Sprintf("Couldn't unmarshall consumer list response: %v %v", string(body), err))
 	}
 	if statusError {

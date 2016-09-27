@@ -3,9 +3,10 @@ package main
 import (
 	"github.com/golang/go/src/pkg/errors"
 	"testing"
+	"strings"
 )
 
-func TestBuildHealthURL(t *testing.T) {
+func TestConsumerStatus(t *testing.T) {
 	var testCases = []struct {
 		body []byte
 		err  error
@@ -202,14 +203,81 @@ func TestBuildHealthURL(t *testing.T) {
 		if expectedMsg != actualMsg {
 			t.Errorf("Expected: [%s]\nActual: [%s]", expectedMsg, actualMsg)
 		}
+	}
+}
 
-		//if tc.err == nil && actualErr != nil {
-		//	t.Errorf("Expected: [<nil>]\nActual: [%v]", actualErr)
-		//} else if tc.err != nil && actualErr == nil {
-		//	t.Errorf("Expected: [%v]\nActual: [<nil>]", tc.err)
-		//} else if actualErr.Error() != tc.err.Error() {
-		//	t.Errorf("Expected: [%v]\nActual: [%v]", tc.err, actualErr)
-		//
-		//}
+func TestConsumerList(t *testing.T) {
+	var testCases = []struct {
+		body []byte
+		err  error
+		consumers []string
+	}{
+		{
+			body: []byte(`{}`),
+			err:  errors.New("Couldn't unmarshall consumer list response"),
+			consumers: nil,
+		},
+		{
+			body: []byte(`{
+				"error": true
+			}`),
+			err: errors.New("Consumer list response is an error"),
+			consumers: nil,
+		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+			}
+			`),
+			err: errors.New("Couldn't unmarshall consumer list response"),
+			consumers: nil,
+		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"consumers": [
+					"xp-notifications-push-2",
+					"xp-v2-annotator-red",
+					"xp-v2-annotator-blue",
+					"console-consumer-2324",
+					"console-consumer-98135"
+				]
+			}
+			`),
+			err: nil,
+			consumers: []string{"xp-notifications-push-2", "xp-v2-annotator-red", "xp-v2-annotator-blue", "console-consumer-2324", "console-consumer-98135"},
+		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"consumers": []
+			}
+			`),
+			err: nil,
+			consumers: []string{},
+		},
+	}
+	h := NewHealthcheck(nil, "", []string{"Concept"}, 30)
+	for _, tc := range testCases {
+		consumers, actualErr := h.parseConsumerGroups(tc.body)
+		actualMsg := "<nil>"
+		if actualErr != nil {
+			actualMsg = actualErr.Error()
+		}
+		expectedMsg := "<nil>"
+		if tc.err != nil {
+			expectedMsg = tc.err.Error()
+		}
+		if !strings.HasPrefix(actualMsg, expectedMsg) {
+			t.Errorf("Expected to start with: [%s]\nActual: [%s]", expectedMsg, actualMsg)
+		}
+		for i, c := range consumers {
+			if c != tc.consumers[i] {
+				t.Errorf("Consumers do not match. Expected: [%s]\nActual: [%s]", tc.consumers, consumers)
+			}
+		}
 	}
 }
