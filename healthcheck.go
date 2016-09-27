@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/Financial-Times/go-fthealth"
+	"github.com/jmoiron/jsonq"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"github.com/jmoiron/jsonq"
-	"bytes"
 )
 
 type Healthcheck struct {
@@ -34,7 +34,7 @@ func NewHealthcheck(httpClient *http.Client, kafkaHost string, whitelistedTopics
 }
 
 func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
-	consumerGroups, err := h.getListOfConsumerGroups()
+	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		fc := h.falseCheck()
 		return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)
@@ -47,13 +47,13 @@ func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
-	consumerGroups, err := h.getListOfConsumerGroups()
+	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		writer.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 	for _, consumer := range consumerGroups {
-		if err := h.checkConsumerGroupForLags(consumer); err != nil {
+		if err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
 			writer.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -67,7 +67,7 @@ func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
-		Checker:          func() error { return h.checkConsumerGroupForLags(consumer) },
+		Checker:          func() error { return h.fetchAndCheckConsumerGroupForLags(consumer) },
 	}
 }
 
@@ -82,7 +82,7 @@ func (h *Healthcheck) falseCheck() fthealth.Check {
 	}
 }
 
-func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
+func (h *Healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
 	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
@@ -101,13 +101,17 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 	}
 	h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
+	return h.checkConsumerGroupForLags(body, consumerGroup)
+}
+
+func (h *Healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
 	fullStatus := map[string]interface{}{}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.Decode(&fullStatus)
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
+		//warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
 		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer status: %v %v", string(body), err))
 	}
 	if statusError {
@@ -119,9 +123,26 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer status: %v %v", string(body), err))
 	}
 	if status == "OK" {
+		totalLag, err := jq.Int("status", "totallag")
+		if err != nil {
+			warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
+			return errors.New(fmt.Sprintf("Couldn't unmarshall totallag: %v %v", string(body), err))
+		}
+		if totalLag > h.lagTolerance {
+			return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+		}
 		return nil
 	}
-	topic, err := jq.Int("status", "partitions", "0", "topic")
+	totalLag, err := jq.Int("status", "totallag")
+	if err != nil {
+		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
+		return errors.New(fmt.Sprintf("Couldn't unmarshall totallag: %v %v", string(body), err))
+	}
+	return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+}
+
+func (h *Healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
+	topic, err := jq.String("status", "maxlag", "topic")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err.Error())
 		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer topic: %v %v", string(body), err))
@@ -131,18 +152,10 @@ func (h *Healthcheck) checkConsumerGroupForLags(consumerGroup string) error {
 			return nil
 		}
 	}
-	lag, err := jq.Int("status", "partitions", "0", "end", "lag")
-	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer lag: %v %v", string(body), err.Error())
-		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer lag: %v %v", string(body), err))
-	}
-	if lag > h.lagTolerance {
-		return errors.New(fmt.Sprintf("%s consumer group is lagging behind with %d messages.", consumerGroup, lag))
-	}
-	return nil
+	return errors.New(fmt.Sprintf("%s consumer group is lagging behind with %d messages.", consumerGroup, lag))
 }
 
-func (h *Healthcheck) getListOfConsumerGroups() ([]string, error) {
+func (h *Healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 	request, err := http.NewRequest("GET", h.checkPrefix, nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
@@ -161,6 +174,10 @@ func (h *Healthcheck) getListOfConsumerGroups() ([]string, error) {
 	}
 	h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
+	return h.parseConsumerGroups(body)
+}
+
+func (h *Healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 	fullConsumers := make(map[string]interface{})
 	json.NewDecoder(bytes.NewReader(body)).Decode(&fullConsumers)
 	jq := jsonq.NewQuery(fullConsumers)
