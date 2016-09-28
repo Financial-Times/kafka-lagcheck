@@ -2,8 +2,9 @@ package main
 
 import (
 	"github.com/golang/go/src/pkg/errors"
-	"testing"
+	"os"
 	"strings"
+	"testing"
 )
 
 func TestConsumerStatus(t *testing.T) {
@@ -93,7 +94,7 @@ func TestConsumerStatus(t *testing.T) {
 				}
 			}
 			`),
-			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 31 messages."),
+			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 31 messages"),
 		},
 		{
 			/*
@@ -131,7 +132,7 @@ func TestConsumerStatus(t *testing.T) {
 				}
 			}
 			`),
-			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 9 messages."),
+			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 9 messages"),
 		},
 		{
 			body: []byte(`{
@@ -189,7 +190,8 @@ func TestConsumerStatus(t *testing.T) {
 			err: nil,
 		},
 	}
-	h := NewHealthcheck(nil, "", []string{"Concept"}, 30)
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
+	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -208,29 +210,28 @@ func TestConsumerStatus(t *testing.T) {
 
 func TestConsumerList(t *testing.T) {
 	var testCases = []struct {
-		body []byte
-		err  error
+		body      []byte
+		err       error
 		consumers []string
 	}{
 		{
-			body: []byte(`{}`),
-			err:  errors.New("Couldn't unmarshall consumer list response"),
+			body:      []byte("{}"),
+			err:       errors.New("Couldn't unmarshall consumer list response"),
 			consumers: nil,
 		},
 		{
 			body: []byte(`{
 				"error": true
 			}`),
-			err: errors.New("Consumer list response is an error"),
+			err:       errors.New("Consumer list response is an error"),
 			consumers: nil,
 		},
 		{
 			body: []byte(`{
 				"error": false,
-				"message": "consumer group status returned",
-			}
-			`),
-			err: errors.New("Couldn't unmarshall consumer list response"),
+				"message": "consumer group status returned"
+			}`),
+			err:       errors.New("Couldn't unmarshall consumer list"),
 			consumers: nil,
 		},
 		{
@@ -246,7 +247,7 @@ func TestConsumerList(t *testing.T) {
 				]
 			}
 			`),
-			err: nil,
+			err:       nil,
 			consumers: []string{"xp-notifications-push-2", "xp-v2-annotator-red", "xp-v2-annotator-blue", "console-consumer-2324", "console-consumer-98135"},
 		},
 		{
@@ -256,11 +257,12 @@ func TestConsumerList(t *testing.T) {
 				"consumers": []
 			}
 			`),
-			err: nil,
+			err:       nil,
 			consumers: []string{},
 		},
 	}
-	h := NewHealthcheck(nil, "", []string{"Concept"}, 30)
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
+	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"

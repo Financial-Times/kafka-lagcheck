@@ -9,31 +9,27 @@ import (
 	"github.com/jmoiron/jsonq"
 	"io/ioutil"
 	"net/http"
-	"os"
 )
 
-type Healthcheck struct {
-	httpClient          *http.Client
-	hostMachine           string
-	whitelistedTopics   []string
-	checkPrefix         string
-	burrowFailuresCount chan bool
-	lagTolerance        int
+type healthcheck struct {
+	httpClient        *http.Client
+	hostMachine       string
+	whitelistedTopics []string
+	checkPrefix       string
+	lagTolerance      int
 }
 
-func NewHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopics []string, lagTolerance int) *Healthcheck {
-	failuresCount := make(chan bool, 3)
-	return &Healthcheck{
-		httpClient:          httpClient,
-		hostMachine:         hostMachine,
-		checkPrefix:         "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
-		whitelistedTopics:   whitelistedTopics,
-		burrowFailuresCount: failuresCount,
-		lagTolerance:        lagTolerance,
+func newHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+	return &healthcheck{
+		httpClient:        httpClient,
+		hostMachine:       hostMachine,
+		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
+		whitelistedTopics: whitelistedTopics,
+		lagTolerance:      lagTolerance,
 	}
 }
 
-func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
@@ -47,7 +43,7 @@ func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request)
 	return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)
 }
 
-func (h *Healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
+func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
@@ -62,7 +58,7 @@ func (h *Healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
+func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Consumer group " + consumer + " is lagging.",
@@ -73,7 +69,7 @@ func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 	}
 }
 
-func (h *Healthcheck) falseCheck(err error) fthealth.Check {
+func (h *healthcheck) falseCheck(err error) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Error retrieving consumer group list.",
@@ -84,7 +80,7 @@ func (h *Healthcheck) falseCheck(err error) fthealth.Check {
 	}
 }
 
-func (h *Healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
+func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
 	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
@@ -93,41 +89,43 @@ func (h *Healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) er
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
-		h.accumulateFailure()
 		return err
 	}
-	defer resp.Body.Close()
+	defer properClose(resp)
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
 		return errors.New(errMsg)
 	}
-	h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
 	return h.checkConsumerGroupForLags(body, consumerGroup)
 }
 
-func (h *Healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
+func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
 	fullStatus := map[string]interface{}{}
 	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.Decode(&fullStatus)
+	err := dec.Decode(&fullStatus)
+	if err != nil {
+		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
+		return fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+	}
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer status: %v %v", string(body), err))
+		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
 	}
 	if statusError {
-		return errors.New(fmt.Sprintf("Consumer status response is an error: %v", string(body)))
+		return fmt.Errorf("Consumer status response is an error: %v", string(body))
 	}
 	status, err := jq.String("status", "status")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
-		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer status: %v %v", string(body), err))
+		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
 	}
 	if status == "OK" {
-		totalLag, err := jq.Int("status", "totallag")
-		if err != nil {
-			warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-			return errors.New(fmt.Sprintf("Couldn't unmarshall totallag: %v %v", string(body), err))
+		totalLag, err2 := jq.Int("status", "totallag")
+		if err2 != nil {
+			warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err2.Error())
+			return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err2)
 		}
 		if totalLag > h.lagTolerance {
 			return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
@@ -137,26 +135,26 @@ func (h *Healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-		return errors.New(fmt.Sprintf("Couldn't unmarshall totallag: %v %v", string(body), err))
+		return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err)
 	}
 	return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
 }
 
-func (h *Healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
+func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
 	topic, err := jq.String("status", "maxlag", "topic")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err.Error())
-		return errors.New(fmt.Sprintf("Couldn't unmarshall consumer topic: %v %v", string(body), err))
+		return fmt.Errorf("Couldn't unmarshall consumer topic: %v %v", string(body), err)
 	}
 	for _, whitelistedTopic := range h.whitelistedTopics {
 		if topic == whitelistedTopic {
 			return nil
 		}
 	}
-	return errors.New(fmt.Sprintf("%s consumer group is lagging behind with %d messages.", consumerGroup, lag))
+	return fmt.Errorf("%s consumer group is lagging behind with %d messages", consumerGroup, lag)
 }
 
-func (h *Healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
+func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 	request, err := http.NewRequest("GET", h.checkPrefix, nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
@@ -165,53 +163,43 @@ func (h *Healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 	resp, err := h.httpClient.Do(request)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
-		//h.accumulateFailure()
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer properClose(resp)
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
 		return nil, errors.New(errMsg)
 	}
-	//h.clearFailures()
 	body, err := ioutil.ReadAll(resp.Body)
 	return h.parseConsumerGroups(body)
 }
 
-func (h *Healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
+func properClose(resp *http.Response) {
+	err := resp.Body.Close()
+	if err != nil {
+		warnLogger.Printf("Could not close response body: %v", err.Error())
+	}
+}
+
+func (h *healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 	fullConsumers := make(map[string]interface{})
-	json.NewDecoder(bytes.NewReader(body)).Decode(&fullConsumers)
+	err := json.NewDecoder(bytes.NewReader(body)).Decode(&fullConsumers)
+	if err != nil {
+		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
+		return nil, fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+	}
 	jq := jsonq.NewQuery(fullConsumers)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Couldn't unmarshall consumer list response: %v %v", string(body), err))
+		return nil, fmt.Errorf("Couldn't unmarshall consumer list response: %v %v", string(body), err)
 	}
 	if statusError {
-		return nil, errors.New(fmt.Sprintf("Consumer list response is an error: %v", string(body)))
+		return nil, fmt.Errorf("Consumer list response is an error: %v", string(body))
 	}
 	consumers, err := jq.ArrayOfStrings("consumers")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
-		return nil, errors.New(fmt.Sprintf("Couldn't unmarshall consumer list: %s %s", string(body), err))
+		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
 	}
 	return consumers, nil
-}
-
-func (h *Healthcheck) accumulateFailure() {
-	select {
-	case h.burrowFailuresCount <- true:
-	default:
-		errorLogger.Println("Will exit app and container with failure, to promote restarting itself. Burrow will have another chance reconnecting to Kafka after.")
-		os.Exit(1)
-	}
-}
-
-func (h *Healthcheck) clearFailures() {
-	for {
-		select {
-		case <-h.burrowFailuresCount:
-		default:
-			return
-		}
-	}
 }

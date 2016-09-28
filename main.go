@@ -39,7 +39,7 @@ func main() {
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
 		httpClient := &http.Client{}
-		healthCheck := NewHealthcheck(httpClient, *hostMachine, *whitelistedTopics, *lagTolerance)
+		healthCheck := newHealthcheck(httpClient, *hostMachine, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth())
 		router.HandleFunc("/__gtg", healthCheck.gtg)
@@ -49,7 +49,10 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		errorLogger.Printf("Running app unsuccessful: %v", err)
+	}
 }
 
 func initLogs(infoHandle io.Writer, warnHandle io.Writer, errorHandle io.Writer) {
