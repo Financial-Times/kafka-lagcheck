@@ -17,11 +17,11 @@ var errorLogger *log.Logger
 
 func main() {
 	app := cli.App("aggregate-healthcheck", "Monitoring health of multiple services in cluster.")
-	kafkaHost := app.String(cli.StringOpt{
-		Name:   "kafka-host",
+	hostMachine := app.String(cli.StringOpt{
+		Name:   "host-machine",
 		Value:  "",
-		Desc:   "Hostname of the machine kafka and burrow (same) runs on (e.g. ip-172-24-91-192.eu-west-1.compute.internal)",
-		EnvVar: "KAFKA_HOST",
+		Desc:   "Hostname of the machine this container runs on (e.g. ip-172-24-91-192.eu-west-1.compute.internal)",
+		EnvVar: "HOST_MACHINE",
 	})
 	whitelistedTopics := app.Strings(cli.StringsOpt{
 		Name:   "whitelisted-topics",
@@ -39,7 +39,7 @@ func main() {
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
 		httpClient := &http.Client{}
-		healthCheck := NewHealthcheck(httpClient, *kafkaHost, *whitelistedTopics, *lagTolerance)
+		healthCheck := NewHealthcheck(httpClient, *hostMachine, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth())
 		router.HandleFunc("/__gtg", healthCheck.gtg)

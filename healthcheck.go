@@ -14,19 +14,19 @@ import (
 
 type Healthcheck struct {
 	httpClient          *http.Client
-	kafkaHost           string
+	hostMachine           string
 	whitelistedTopics   []string
 	checkPrefix         string
 	burrowFailuresCount chan bool
 	lagTolerance        int
 }
 
-func NewHealthcheck(httpClient *http.Client, kafkaHost string, whitelistedTopics []string, lagTolerance int) *Healthcheck {
+func NewHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopics []string, lagTolerance int) *Healthcheck {
 	failuresCount := make(chan bool, 3)
 	return &Healthcheck{
 		httpClient:          httpClient,
-		kafkaHost:           kafkaHost,
-		checkPrefix:         "http://127.0.0.1:8081/v2/kafka/local/consumer/",
+		hostMachine:         hostMachine,
+		checkPrefix:         "http://" + hostMachine + "/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics:   whitelistedTopics,
 		burrowFailuresCount: failuresCount,
 		lagTolerance:        lagTolerance,
@@ -36,7 +36,8 @@ func NewHealthcheck(httpClient *http.Client, kafkaHost string, whitelistedTopics
 func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
-		fc := h.falseCheck()
+		warnLogger.Println(err.Error())
+		fc := h.falseCheck(err)
 		return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)
 	}
 	var consumerGroupChecks []fthealth.Check
@@ -49,6 +50,7 @@ func (h *Healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request)
 func (h *Healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
+		warnLogger.Println(err.Error())
 		writer.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -71,13 +73,13 @@ func (h *Healthcheck) consumerLags(consumer string) fthealth.Check {
 	}
 }
 
-func (h *Healthcheck) falseCheck() fthealth.Check {
+func (h *Healthcheck) falseCheck(err error) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Error retrieving consumer group list.",
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
-		TechnicalSummary: "Error retrieving consumer group list. The healthcheck may not be functioning properly, please try again or restart kafka-lagcheck if this doesn't change.",
+		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. The healthcheck may not be functioning properly, please try again or restart kafka-lagcheck if this doesn't change. %s", err.Error()),
 		Checker:          func() error { return errors.New("Error retrieving consumer group list.") },
 	}
 }
