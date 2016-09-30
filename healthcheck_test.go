@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/golang/go/src/pkg/errors"
-	"os"
 	"strings"
 	"testing"
+	"io/ioutil"
 )
 
 func TestConsumerStatus(t *testing.T) {
@@ -189,8 +189,60 @@ func TestConsumerStatus(t *testing.T) {
 			`),
 			err: nil,
 		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"status": {
+					"cluster": "local",
+					"group": "xp-notifications-push-2",
+					"status": "ERR",
+					"complete": true,
+					"partitions": [
+						{
+							"topic": "NativeCmsMetadataPublicationEvents",
+							"partition": 0,
+							"status": "STOP",
+							"start": {
+								"offset": 1854,
+								"timestamp": 1475255783092,
+								"lag": 0
+							},
+							"end": {
+								"offset": 1860,
+								"timestamp": 1475256143092,
+								"lag": 0
+							}
+						}
+					],
+					"partition_count": 1,
+					"maxlag": null,
+					"totallag": 0
+				}
+			}
+			`),
+			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 0 messages"),
+		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"status": {
+					"cluster": "local",
+					"group": "xp-notifications-push-2",
+					"status": "ERR",
+					"complete": true,
+					"partitions": null,
+					"partition_count": 1,
+					"maxlag": null,
+					"totallag": 0
+				}
+			}
+			`),
+			err: errors.New("Couldn't unmarshall topic for consumer=xp-notifications-push-2"),
+		},
 	}
-	initLogs(os.Stdout, os.Stdout, os.Stderr)
+	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
 	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
@@ -261,7 +313,7 @@ func TestConsumerList(t *testing.T) {
 			consumers: []string{},
 		},
 	}
-	initLogs(os.Stdout, os.Stdout, os.Stderr)
+	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
 	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)

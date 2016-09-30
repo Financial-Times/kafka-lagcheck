@@ -141,10 +141,15 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 }
 
 func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
-	topic, err := jq.String("status", "maxlag", "topic")
-	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall consumer topic: %v %v", string(body), err)
+	topic1, err1 := jq.String("status", "maxlag", "topic")
+	topic2, err2 := jq.String("status", "partitions", "0", "topic")
+	if err1 != nil && err2 != nil {
+		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err1.Error() + err2.Error())
+		return fmt.Errorf("Couldn't unmarshall topic for consumer=%s", consumerGroup)
+	}
+	topic := topic1
+	if topic == "" {
+		topic = topic2
 	}
 	for _, whitelistedTopic := range h.whitelistedTopics {
 		if topic == whitelistedTopic {
