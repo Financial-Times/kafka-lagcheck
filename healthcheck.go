@@ -106,46 +106,35 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 	err := dec.Decode(&fullStatus)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+		return errors.New("Could not decode response body to json.")
 	}
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
+		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
+		return errors.New("Couldn't unmarshall consumer status.")
 	}
 	if statusError {
-		return fmt.Errorf("Consumer status response is an error: %v", string(body))
-	}
-	status, err := jq.String("status", "status")
-	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
-	}
-	if status == "OK" {
-		totalLag, err2 := jq.Int("status", "totallag")
-		if err2 != nil {
-			warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err2.Error())
-			return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err2)
-		}
-		if totalLag > h.lagTolerance {
-			return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
-		}
-		return nil
+		warnLogger.Printf("Consumer status response is an error: %v", string(body))
+		return errors.New("Consumer status response is an error.")
 	}
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err)
+		return errors.New("Couldn't unmarshall totallag.")
 	}
-	return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+	if totalLag > h.lagTolerance {
+		return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+	}
+	return nil
 }
 
 func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
 	topic1, err1 := jq.String("status", "maxlag", "topic")
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err1.Error() + err2.Error())
-		return fmt.Errorf("Couldn't unmarshall topic for consumer=%s", consumerGroup)
+		warnLogger.Printf("Couldn't unmarshall topic: %v %v %v", string(body), err1.Error(), err2.Error())
+		return errors.New("Couldn't unmarshall topic.")
 	}
 	topic := topic1
 	if topic == "" {
