@@ -9,6 +9,7 @@ import (
 	"github.com/jmoiron/jsonq"
 	"io/ioutil"
 	"net/http"
+	"io"
 )
 
 type healthcheck struct {
@@ -169,6 +170,7 @@ func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 }
 
 func properClose(resp *http.Response) {
+	io.Copy(ioutil.Discard, resp.Body)
 	err := resp.Body.Close()
 	if err != nil {
 		warnLogger.Printf("Could not close response body: %v", err.Error())
