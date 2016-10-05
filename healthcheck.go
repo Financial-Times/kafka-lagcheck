@@ -161,11 +161,13 @@ func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 		return nil, err
 	}
 	defer properClose(resp)
+	infoLogger.Printf("GET %v %d", h.checkPrefix, resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
 		return nil, errors.New(errMsg)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
+	infoLogger.Printf("body: %v", string(body))
 	return h.parseConsumerGroups(body)
 }
 
@@ -197,5 +199,6 @@ func (h *healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
 		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
 	}
+	infoLogger.Printf("parseConsumerGroups.consumers: %v", consumers)
 	return consumers, nil
 }
