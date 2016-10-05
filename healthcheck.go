@@ -32,11 +32,13 @@ func newHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopi
 
 func (h *healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
+	infoLogger.Println("checkHealth 35")
 	if err != nil {
 		warnLogger.Println(err.Error())
 		fc := h.falseCheck(err)
 		return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)
 	}
+	infoLogger.Println("checkHealth 41")
 	var consumerGroupChecks []fthealth.Check
 	for _, consumer := range consumerGroups {
 		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
@@ -150,6 +152,7 @@ func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 }
 
 func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
+	infoLogger.Println("fetchAndParseConsumerGroups()")
 	request, err := http.NewRequest("GET", h.checkPrefix, nil)
 	if err != nil {
 		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
