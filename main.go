@@ -38,18 +38,9 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		//transport := &http.Transport{
-		//	Dial: proxy.Direct.Dial,
-		//	ResponseHeaderTimeout: 10 * time.Second,
-		//	MaxIdleConnsPerHost:   100,
-		//}
-		//httpClient := &http.Client{
-		//	Timeout:   5 * time.Second,
-		//	Transport: transport,
-		//}
 		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
-		router.HandleFunc("/__health", healthCheck.checkHealth())
+		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)
 		err := http.ListenAndServe(":8080", router)
 		if err != nil {

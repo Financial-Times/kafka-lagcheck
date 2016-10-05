@@ -13,6 +13,7 @@ import (
 )
 
 type healthcheck struct {
+	httpClient        *http.Client
 	hostMachine       string
 	whitelistedTopics []string
 	checkPrefix       string
@@ -21,6 +22,7 @@ type healthcheck struct {
 
 func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
+		httpClient:        &http.Client{},
 		hostMachine:       hostMachine,
 		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
@@ -28,20 +30,21 @@ func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance
 	}
 }
 
-func (h *healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheck) checkHealth(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	infoLogger.Println("checkHealth 35")
 	if err != nil {
 		warnLogger.Println(err.Error())
 		fc := h.falseCheck(err)
-		return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)
+		fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)(w, r)
+		return
 	}
 	infoLogger.Println("checkHealth 41")
 	var consumerGroupChecks []fthealth.Check
 	for _, consumer := range consumerGroups {
 		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
 	}
-	return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)
+	fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)(w, r)
 }
 
 func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
