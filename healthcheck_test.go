@@ -218,7 +218,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
+	h := newHealthcheck("", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -289,7 +289,7 @@ func TestConsumerList(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
+	h := newHealthcheck("", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"
