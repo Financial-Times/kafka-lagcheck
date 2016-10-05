@@ -13,16 +13,14 @@ import (
 )
 
 type healthcheck struct {
-	httpClient        *http.Client
 	hostMachine       string
 	whitelistedTopics []string
 	checkPrefix       string
 	lagTolerance      int
 }
 
-func newHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
-		httpClient:        httpClient,
 		hostMachine:       hostMachine,
 		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
@@ -84,12 +82,7 @@ func (h *healthcheck) falseCheck(err error) fthealth.Check {
 }
 
 func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
-	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
-	if err != nil {
-		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
-		return err
-	}
-	resp, err := h.httpClient.Do(request)
+	resp, err := http.Get(h.checkPrefix+consumerGroup+"/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err
@@ -153,12 +146,7 @@ func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 
 func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 	infoLogger.Println("fetchAndParseConsumerGroups()")
-	request, err := http.NewRequest("GET", h.checkPrefix, nil)
-	if err != nil {
-		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
-		return nil, err
-	}
-	resp, err := h.httpClient.Do(request)
+	resp, err := http.Get(h.checkPrefix)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return nil, err

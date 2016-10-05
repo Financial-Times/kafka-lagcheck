@@ -3,12 +3,10 @@ package main
 import (
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
-	"golang.org/x/net/proxy"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
@@ -40,16 +38,16 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		transport := &http.Transport{
-			Dial: proxy.Direct.Dial,
-			ResponseHeaderTimeout: 10 * time.Second,
-			MaxIdleConnsPerHost:   100,
-		}
-		httpClient := &http.Client{
-			Timeout:   5 * time.Second,
-			Transport: transport,
-		}
-		healthCheck := newHealthcheck(httpClient, *hostMachine, *whitelistedTopics, *lagTolerance)
+		//transport := &http.Transport{
+		//	Dial: proxy.Direct.Dial,
+		//	ResponseHeaderTimeout: 10 * time.Second,
+		//	MaxIdleConnsPerHost:   100,
+		//}
+		//httpClient := &http.Client{
+		//	Timeout:   5 * time.Second,
+		//	Transport: transport,
+		//}
+		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth())
 		router.HandleFunc("/__gtg", healthCheck.gtg)
