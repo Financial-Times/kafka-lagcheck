@@ -38,10 +38,9 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		httpClient := &http.Client{}
-		healthCheck := newHealthcheck(httpClient, *hostMachine, *whitelistedTopics, *lagTolerance)
+		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
-		router.HandleFunc("/__health", healthCheck.checkHealth())
+		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)
 		err := http.ListenAndServe(":8080", router)
 		if err != nil {

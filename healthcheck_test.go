@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/golang/go/src/pkg/errors"
-	"os"
 	"strings"
 	"testing"
+	"io/ioutil"
 )
 
 func TestConsumerStatus(t *testing.T) {
@@ -14,21 +14,16 @@ func TestConsumerStatus(t *testing.T) {
 	}{
 		{
 			body: []byte(`{}`),
-			err:  errors.New("Couldn't unmarshall consumer status: {} Object map[] does not contain field error\n"),
+			err:  errors.New("Couldn't unmarshall consumer status."),
 		},
 		{
 			body: []byte(`{
 				"error": true
 			}`),
-			err: errors.New(`Consumer status response is an error: {
-				"error": true
-			}`),
+			err: errors.New("Consumer status response is an error."),
 		},
 		{
-			/*
-				Lag is not 0 but status is OK, meaning lag was 0 at least once over the observation window.
-				Lag is not extremely high either.
-			*/
+			// Lag is not 0 but below threshold.
 			body: []byte(`{
 				"error": false,
 				"message": "consumer group status returned",
@@ -61,10 +56,7 @@ func TestConsumerStatus(t *testing.T) {
 			err: nil,
 		},
 		{
-			/*
-				Lag is not 0 but status is OK, meaning lag was 0 at least once over the observation window.
-				Lag is however over our tolerance.
-			*/
+			// Lag is however over our tolerance.
 			body: []byte(`{
 				"error": false,
 				"message": "consumer group status returned",
@@ -98,9 +90,8 @@ func TestConsumerStatus(t *testing.T) {
 		},
 		{
 			/*
-				Lag is not 0 but that is not the problem.
-				If offsets are committed, but lag keeps increasing over the observation window, burrow will warn us. That's a problem.
-				Statuses can be STALLING or ERROR as well, neither of them are not ok.
+				Lag is not 0 but below threshold.
+				Burrow is not returning an OK status, according to its evaluation rules, but all we care is about lag number.
 				https://github.com/linkedin/Burrow/wiki/Consumer-Lag-Evaluation-Rules
 			*/
 			body: []byte(`{
@@ -132,9 +123,10 @@ func TestConsumerStatus(t *testing.T) {
 				}
 			}
 			`),
-			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 9 messages"),
+			err: nil,
 		},
 		{
+			// No problems at all
 			body: []byte(`{
 				"error": false,
 				"message": "consumer group status returned",
@@ -154,8 +146,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 		{
 			/*
-				Lag is not 0 but status is OK, meaning lag was 0 at least once over the observation window.
-				Lag is our tolerance.
+				Lag is over our tolerance.
 				Topic is in our white-list.
 			*/
 			body: []byte(`{
@@ -189,9 +180,45 @@ func TestConsumerStatus(t *testing.T) {
 			`),
 			err: nil,
 		},
+		{
+			// Consumer is stopped, burrow is not showing an OK status.
+			// Lag is however zero, means all messages are consumed, and group not used for a long time.
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"status": {
+					"cluster": "local",
+					"group": "xp-notifications-push-2",
+					"status": "ERR",
+					"complete": true,
+					"partitions": [
+						{
+							"topic": "NativeCmsMetadataPublicationEvents",
+							"partition": 0,
+							"status": "STOP",
+							"start": {
+								"offset": 1854,
+								"timestamp": 1475255783092,
+								"lag": 0
+							},
+							"end": {
+								"offset": 1860,
+								"timestamp": 1475256143092,
+								"lag": 0
+							}
+						}
+					],
+					"partition_count": 1,
+					"maxlag": null,
+					"totallag": 0
+				}
+			}
+			`),
+			err: nil,
+		},
 	}
-	initLogs(os.Stdout, os.Stdout, os.Stderr)
-	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
+	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
+	h := newHealthcheck("", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -261,8 +288,8 @@ func TestConsumerList(t *testing.T) {
 			consumers: []string{},
 		},
 	}
-	initLogs(os.Stdout, os.Stdout, os.Stderr)
-	h := newHealthcheck(nil, "", []string{"Concept"}, 30)
+	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
+	h := newHealthcheck("", []string{"Concept"}, 30)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"

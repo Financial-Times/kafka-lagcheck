@@ -9,19 +9,18 @@ import (
 	"github.com/jmoiron/jsonq"
 	"io/ioutil"
 	"net/http"
+	"io"
 )
 
 type healthcheck struct {
-	httpClient        *http.Client
 	hostMachine       string
 	whitelistedTopics []string
 	checkPrefix       string
 	lagTolerance      int
 }
 
-func newHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
-		httpClient:        httpClient,
 		hostMachine:       hostMachine,
 		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
@@ -29,18 +28,24 @@ func newHealthcheck(httpClient *http.Client, hostMachine string, whitelistedTopi
 	}
 }
 
-func (h *healthcheck) checkHealth() func(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheck) checkHealth(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
-		fc := h.falseCheck(err)
-		return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", fc)
+		c := h.burrowUnavailableCheck(err)
+		fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", c)(w, r)
+		return
 	}
 	var consumerGroupChecks []fthealth.Check
 	for _, consumer := range consumerGroups {
 		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
 	}
-	return fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)
+	if len(consumerGroups) == 0 {
+		c := h.noConsumerGroupsCheck()
+		fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", c)(w, r)
+		return
+	}
+	fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)(w, r)
 }
 
 func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
@@ -69,24 +74,30 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 	}
 }
 
-func (h *healthcheck) falseCheck(err error) fthealth.Check {
+func (h *healthcheck) burrowUnavailableCheck(err error) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Error retrieving consumer group list.",
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
-		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. The healthcheck may not be functioning properly, please try again or restart kafka-lagcheck if this doesn't change. %s", err.Error()),
+		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly. %s", err.Error()),
 		Checker:          func() error { return errors.New("Error retrieving consumer group list.") },
 	}
 }
 
-func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
-	request, err := http.NewRequest("GET", h.checkPrefix+consumerGroup+"/status", nil)
-	if err != nil {
-		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
-		return err
+func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "Will delay publishing on respective pipeline.",
+		Name:             "Error retrieving consumer group list.",
+		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
+		Severity:         1,
+		TechnicalSummary: "Can't see any consumers yet so no lags to report and could successfully connect to kafka. This usually should happen only on startup, please retry in a few moments, and if this case persists, take a more serious look at burrow and kafka.",
+		Checker:          func() error { return nil },
 	}
-	resp, err := h.httpClient.Do(request)
+}
+
+func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
+	resp, err := http.Get(h.checkPrefix+consumerGroup+"/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err
@@ -106,45 +117,39 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 	err := dec.Decode(&fullStatus)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+		return errors.New("Could not decode response body to json.")
 	}
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
+		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
+		return errors.New("Couldn't unmarshall consumer status.")
 	}
 	if statusError {
-		return fmt.Errorf("Consumer status response is an error: %v", string(body))
-	}
-	status, err := jq.String("status", "status")
-	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall consumer status: %v %v", string(body), err)
-	}
-	if status == "OK" {
-		totalLag, err2 := jq.Int("status", "totallag")
-		if err2 != nil {
-			warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err2.Error())
-			return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err2)
-		}
-		if totalLag > h.lagTolerance {
-			return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
-		}
-		return nil
+		warnLogger.Printf("Consumer status response is an error: %v", string(body))
+		return errors.New("Consumer status response is an error.")
 	}
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall totallag: %v %v", string(body), err)
+		return errors.New("Couldn't unmarshall totallag.")
 	}
-	return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+	if totalLag > h.lagTolerance {
+		return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+	}
+	return nil
 }
 
 func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
-	topic, err := jq.String("status", "maxlag", "topic")
-	if err != nil {
-		warnLogger.Printf("Couldn't unmarshall consumer topic: %v %v", string(body), err.Error())
-		return fmt.Errorf("Couldn't unmarshall consumer topic: %v %v", string(body), err)
+	topic1, err1 := jq.String("status", "maxlag", "topic")
+	topic2, err2 := jq.String("status", "partitions", "0", "topic")
+	if err1 != nil && err2 != nil {
+		warnLogger.Printf("Couldn't unmarshall topic: %v %v %v", string(body), err1.Error(), err2.Error())
+		return errors.New("Couldn't unmarshall topic.")
+	}
+	topic := topic1
+	if topic == "" {
+		topic = topic2
 	}
 	for _, whitelistedTopic := range h.whitelistedTopics {
 		if topic == whitelistedTopic {
@@ -155,12 +160,7 @@ func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 }
 
 func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
-	request, err := http.NewRequest("GET", h.checkPrefix, nil)
-	if err != nil {
-		warnLogger.Printf("Could not connect to burrow: %v", err.Error())
-		return nil, err
-	}
-	resp, err := h.httpClient.Do(request)
+	resp, err := http.Get(h.checkPrefix)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return nil, err
@@ -175,6 +175,7 @@ func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 }
 
 func properClose(resp *http.Response) {
+	io.Copy(ioutil.Discard, resp.Body)
 	err := resp.Body.Close()
 	if err != nil {
 		warnLogger.Printf("Could not close response body: %v", err.Error())
