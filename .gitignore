@@ -1,3 +1,4 @@
+.idea/
+vendor/*/
 kafka-lagcheck
 kafka-lagcheck.exe
-.idea/

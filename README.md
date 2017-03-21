@@ -7,10 +7,12 @@ Connects to an application based on [github.com/linkedin/Burrow](https://github.
 ## Run locally
 
 1. You need to set up a [burrow](https://github.com/Financial-Times/burrow) running locally.
-2. `go get github.com/Financial-Times/kafka-lagcheck`
-3. `cd $GOPATH/src/github.com/Financial-Times/kafka-lagcheck`
-4. `go install`
-5. `./kafka-lagcheck`
+2. `go get -u github.com/kardianos/govendor`
+3. `go get -u github.com/Financial-Times/kafka-lagcheck`
+4. `cd $GOPATH/src/github.com/Financial-Times/kafka-lagcheck`
+5. `govendor sync`
+6. `go install`
+7. `./kafka-lagcheck`
 
 The go app is only serving as a forwarder, it makes requests to Burrow, and forms the result in an FT standard healthcheck format. e.g.
 
