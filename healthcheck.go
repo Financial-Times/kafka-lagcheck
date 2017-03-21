@@ -5,24 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Financial-Times/go-fthealth"
-	"github.com/jmoiron/jsonq"
+	"io"
 	"io/ioutil"
 	"net/http"
-	"io"
+
+	"github.com/Financial-Times/go-fthealth"
+	"github.com/jmoiron/jsonq"
 )
 
 type healthcheck struct {
-	hostMachine       string
 	whitelistedTopics []string
 	checkPrefix       string
 	lagTolerance      int
 }
 
-func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+func newHealthcheck(burrowUrl string, whitelistedTopics []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
-		hostMachine:       hostMachine,
-		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
+		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
 		lagTolerance:      lagTolerance,
 	}
@@ -97,7 +96,7 @@ func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
 }
 
 func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
-	resp, err := http.Get(h.checkPrefix+consumerGroup+"/status")
+	resp, err := http.Get(h.checkPrefix + consumerGroup + "/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err

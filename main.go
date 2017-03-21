@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
-	"github.com/jawher/mow.cli"
 	"io"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/gorilla/mux"
+	"github.com/jawher/mow.cli"
 )
 
 const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
@@ -17,11 +18,10 @@ var errorLogger *log.Logger
 
 func main() {
 	app := cli.App("aggregate-healthcheck", "Monitoring health of multiple services in cluster.")
-	hostMachine := app.String(cli.StringOpt{
-		Name:   "host-machine",
-		Value:  "",
-		Desc:   "Hostname of the machine this container runs on (e.g. ip-172-24-91-192.eu-west-1.compute.internal)",
-		EnvVar: "HOST_MACHINE",
+	burrowURL := app.String(cli.StringOpt{
+		Name:   "burrow-url",
+		Desc:   "The URL for the burrow service (e.g. http://burrow:8080)",
+		EnvVar: "BURROW_URL",
 	})
 	whitelistedTopics := app.Strings(cli.StringsOpt{
 		Name:   "whitelisted-topics",
@@ -38,7 +38,7 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *lagTolerance)
+		healthCheck := newHealthcheck(*burrowURL, *whitelistedTopics, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)

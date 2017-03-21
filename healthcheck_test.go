@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/golang/go/src/pkg/errors"
+	"io/ioutil"
 	"strings"
 	"testing"
-	"io/ioutil"
+
+	"github.com/golang/go/src/pkg/errors"
 )
 
 func TestConsumerStatus(t *testing.T) {
