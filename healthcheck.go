@@ -10,20 +10,23 @@ import (
 	"io/ioutil"
 	"net/http"
 	"io"
+	"strings"
 )
 
 type healthcheck struct {
 	hostMachine       string
 	whitelistedTopics []string
+	whitelistedEnvs   []string
 	checkPrefix       string
 	lagTolerance      int
 }
 
-func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+func newHealthcheck(hostMachine string, whitelistedTopics []string, whitelistedEnvs []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
 		hostMachine:       hostMachine,
 		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
+		whitelistedEnvs:   whitelistedEnvs,
 		lagTolerance:      lagTolerance,
 	}
 }
@@ -202,5 +205,28 @@ func (h *healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
 		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
 	}
-	return consumers, nil
+	return h.filterOutNonRelatedKafkaBridges(consumers), nil
+}
+
+func (h *healthcheck) filterOutNonRelatedKafkaBridges(consumers []string) []string {
+	filteredConsumers := []string{}
+	for _, consumer := range consumers {
+		if strings.Contains(consumer, "kafka-bridge") && !h.isBridgeFromWhitelistedEnvs(consumer) {
+			continue
+		}
+
+		filteredConsumers = append(filteredConsumers, consumer)
+	}
+
+	return filteredConsumers
+}
+
+func (h *healthcheck) isBridgeFromWhitelistedEnvs(bridgeName string) bool {
+	for _, whitelistedEnv := range h.whitelistedEnvs {
+		if strings.HasPrefix(bridgeName, whitelistedEnv) {
+			return true
+		}
+	}
+
+	return false
 }
