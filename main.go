@@ -44,7 +44,7 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics,*whitelistedEnvironments, *lagTolerance)
+		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *whitelistedEnvironments, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)

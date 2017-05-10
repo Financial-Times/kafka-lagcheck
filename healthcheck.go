@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"github.com/Financial-Times/go-fthealth"
 	"github.com/jmoiron/jsonq"
+	"io"
 	"io/ioutil"
 	"net/http"
-	"io"
 	"strings"
 )
 
@@ -100,7 +100,7 @@ func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
 }
 
 func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
-	resp, err := http.Get(h.checkPrefix+consumerGroup+"/status")
+	resp, err := http.Get(h.checkPrefix + consumerGroup + "/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err
