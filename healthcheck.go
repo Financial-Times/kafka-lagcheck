@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Financial-Times/go-fthealth"
+	"github.com/Financial-Times/go-fgithealth"
 	"github.com/jmoiron/jsonq"
 	"io"
 	"io/ioutil"
@@ -144,12 +144,12 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 		return errors.New("Couldn't unmarshall totallag.")
 	}
 	if totalLag > h.lagTolerance {
-		return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+		return h.ignoreWhitelistedTopics(jq, body, totalLag, consumerGroup)
 	}
 	return nil
 }
 
-func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
+func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
 	topic1, err1 := jq.String("status", "maxlag", "topic")
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
@@ -228,7 +228,7 @@ func (h *healthcheck) filterOutNonRelatedKafkaBridges(consumers []string) []stri
 }
 
 func (h *healthcheck) isBridgeFromWhitelistedEnvs(bridgeName string) bool {
-	//Do not filter out any Kafke bridge by default
+	//Do not filter out any Kafka bridge by default
 	if len(h.whitelistedEnvs) == 0 {
 		return true
 	}
