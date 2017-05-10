@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Financial-Times/go-fgithealth"
+	"github.com/Financial-Times/go-fthealth"
 	"github.com/jmoiron/jsonq"
 	"io"
 	"io/ioutil"

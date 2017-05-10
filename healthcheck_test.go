@@ -344,7 +344,7 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 		},
 		{
 			whitelistedEnvs:[]string{"prod-env", "pub-prod-env"},
-			consumers: []string{"console-consumer", "praod-env-kafka-bridge", "lower-env-kafka-bridge", "pre-prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
+			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge", "pre-prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
 			expected:[]string{"console-consumer", "prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
 		},
 
