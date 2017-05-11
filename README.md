@@ -1,6 +1,8 @@
 # kafka-lagcheck - Kafka Consumer Lag Checking
 
-Just creates a healthcheck and good-to-go endpoint that's checking kafka consumer lags..
+[![CircleCI](https://circleci.com/gh/Financial-Times/kafka-lagcheck.svg?style=shield)](https://circleci.com/gh/Financial-Times/kafka-lagcheck) [![Coverage Status](https://coveralls.io/repos/github/Financial-Times/kafka-lagcheck/badge.svg)](https://coveralls.io/github/Financial-Times/kafka-lagcheck)
+
+Just creates a healthcheck and good-to-go endpoint that's checking kafka consumer lags.
 
 Connects to an application based on [github.com/linkedin/Burrow](https://github.com/linkedin/Burrow)
 
