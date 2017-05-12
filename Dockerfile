@@ -1,22 +1,31 @@
-FROM alpine:3.4
+FROM golang:1.8-alpine
 
-ADD *.go /kafka-lagcheck/
+ENV PROJECT=kafka-lagcheck
+COPY . /${PROJECT}-sources/
 
-RUN apk update \
-  && apk add bash \
-  && apk add git bzr \
-  && apk add go \
-  && export GOPATH=/gopath \
-  && export LAGCHECK_REPO_PATH="github.com/Financial-Times/kafka-lagcheck" \
-  && mkdir -p $GOPATH/src/${LAGCHECK_REPO_PATH} \
-  && cp -r /kafka-lagcheck/*.go $GOPATH/src/${LAGCHECK_REPO_PATH}/ \
-  && cd $GOPATH/src/${LAGCHECK_REPO_PATH} \
-  && go get -t ./... \
-  && go build \
-  && mv kafka-lagcheck /kafka-lagcheck-app \
-  && rm -rf /kafka-lagcheck \
-  && mv /kafka-lagcheck-app /kafka-lagcheck \
-  && apk del go git bzr \
-  && rm -rf $GOPATH /var/cache/apk/*
+RUN apk add --no-cache --virtual .build-dependencies git \
+  && ORG_PATH="github.com/Financial-Times" \
+  && REPO_PATH="${ORG_PATH}/${PROJECT}" \
+  && mkdir -p $GOPATH/src/${ORG_PATH} \
+# Linking the project sources in the GOPATH folder
+  && ln -s /${PROJECT}-sources $GOPATH/src/${REPO_PATH} \
+  && cd $GOPATH/src/${REPO_PATH} \
+  && BUILDINFO_PACKAGE="github.com/Financial-Times/service-status-go/buildinfo." \
+  && VERSION="version=$(git describe --tag --always 2> /dev/null)" \
+  && DATETIME="dateTime=$(date -u +%Y%m%d%H%M%S)" \
+  && REPOSITORY="repository=$(git config --get remote.origin.url)" \
+  && REVISION="revision=$(git rev-parse HEAD)" \
+  && BUILDER="builder=$(go version)" \
+  && LDFLAGS="-X '"${BUILDINFO_PACKAGE}$VERSION"' -X '"${BUILDINFO_PACKAGE}$DATETIME"' -X '"${BUILDINFO_PACKAGE}$REPOSITORY"' -X '"${BUILDINFO_PACKAGE}$REVISION"' -X '"${BUILDINFO_PACKAGE}$BUILDER"'" \
+  && echo "Fetching dependencies..." \
+  && go get -u github.com/kardianos/govendor \
+  && $GOPATH/bin/govendor sync \
+  && echo "Building app..." \
+  && echo "Build flags: $LDFLAGS" \
+  && CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="${LDFLAGS}" -o /${PROJECT} ${REPO_PATH} \
+  && apk del .build-dependencies \
+  && rm -rf $GOPATH/src $GOPATH/pkg $GOPATH/.cache $GOPATH/bin /${PROJECT}-sources
 
-CMD [ "/kafka-lagcheck" ]
+WORKDIR /
+# Using the expanded command, so that the shell will expand the $PROJECT env var. See https://docs.docker.com/engine/reference/builder/#cmd
+CMD ["/kafka-lagcheck"]

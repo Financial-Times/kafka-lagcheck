@@ -7,23 +7,26 @@ import (
 	"fmt"
 	"github.com/Financial-Times/go-fthealth"
 	"github.com/jmoiron/jsonq"
+	"io"
 	"io/ioutil"
 	"net/http"
-	"io"
+	"strings"
 )
 
 type healthcheck struct {
 	hostMachine       string
 	whitelistedTopics []string
+	whitelistedEnvs   []string
 	checkPrefix       string
 	lagTolerance      int
 }
 
-func newHealthcheck(hostMachine string, whitelistedTopics []string, lagTolerance int) *healthcheck {
+func newHealthcheck(hostMachine string, whitelistedTopics []string, whitelistedEnvs []string, lagTolerance int) *healthcheck {
 	return &healthcheck{
 		hostMachine:       hostMachine,
 		checkPrefix:       "http://" + hostMachine + ":8080/__burrow/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
+		whitelistedEnvs:   whitelistedEnvs,
 		lagTolerance:      lagTolerance,
 	}
 }
@@ -70,7 +73,9 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
-		Checker:          func() error { return h.fetchAndCheckConsumerGroupForLags(consumer) },
+		Checker:          func() error {
+			return h.fetchAndCheckConsumerGroupForLags(consumer)
+		},
 	}
 }
 
@@ -81,7 +86,9 @@ func (h *healthcheck) burrowUnavailableCheck(err error) fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly. %s", err.Error()),
-		Checker:          func() error { return errors.New("Error retrieving consumer group list.") },
+		Checker:          func() error {
+			return errors.New("Error retrieving consumer group list.")
+		},
 	}
 }
 
@@ -92,12 +99,14 @@ func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Can't see any consumers yet so no lags to report and could successfully connect to kafka. This usually should happen only on startup, please retry in a few moments, and if this case persists, take a more serious look at burrow and kafka.",
-		Checker:          func() error { return nil },
+		Checker:          func() error {
+			return nil
+		},
 	}
 }
 
 func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
-	resp, err := http.Get(h.checkPrefix+consumerGroup+"/status")
+	resp, err := http.Get(h.checkPrefix + consumerGroup + "/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return err
@@ -135,12 +144,12 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 		return errors.New("Couldn't unmarshall totallag.")
 	}
 	if totalLag > h.lagTolerance {
-		return h.igonreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+		return h.ignoreWhitelistedTopics(jq, body, totalLag, consumerGroup)
 	}
 	return nil
 }
 
-func (h *healthcheck) igonreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
+func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
 	topic1, err1 := jq.String("status", "maxlag", "topic")
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
@@ -202,5 +211,33 @@ func (h *healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
 		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
 	}
-	return consumers, nil
+	return h.filterOutNonRelatedKafkaBridges(consumers), nil
+}
+
+func (h *healthcheck) filterOutNonRelatedKafkaBridges(consumers []string) []string {
+	filteredConsumers := []string{}
+	for _, consumer := range consumers {
+		if strings.Contains(consumer, "kafka-bridge") && !h.isBridgeFromWhitelistedEnvs(consumer) {
+			continue
+		}
+
+		filteredConsumers = append(filteredConsumers, consumer)
+	}
+
+	return filteredConsumers
+}
+
+func (h *healthcheck) isBridgeFromWhitelistedEnvs(bridgeName string) bool {
+	//Do not filter out any Kafka bridge by default
+	if len(h.whitelistedEnvs) == 0 {
+		return true
+	}
+
+	for _, whitelistedEnv := range h.whitelistedEnvs {
+		if strings.HasPrefix(bridgeName, whitelistedEnv) {
+			return true
+		}
+	}
+
+	return false
 }

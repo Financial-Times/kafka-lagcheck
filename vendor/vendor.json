@@ -1,0 +1,41 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "bVrDZENiBMj1q+q+Aa2QoMuwaWk=",
+			"path": "github.com/Financial-Times/go-fthealth",
+			"revision": "f9074331b3ab48bca0e6d0afc211a673d88ac925",
+			"revisionTime": "2016-06-16T09:04:59Z",
+			"version": "0.1.0",
+			"versionExact": "0.1.0"
+		},
+		{
+			"checksumSHA1": "g/V4qrXjUGG9B+e3hB+4NAYJ5Gs=",
+			"path": "github.com/gorilla/context",
+			"revision": "08b5f424b9271eedf6f9f0ce86cb9396ed337a42",
+			"revisionTime": "2016-08-17T18:46:32Z"
+		},
+		{
+			"checksumSHA1": "F5dR3/i70EhSIMZfeIV+H8/PtvM=",
+			"path": "github.com/gorilla/mux",
+			"revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
+			"revisionTime": "2017-01-18T13:43:44Z",
+			"version": "v1.3.0",
+			"versionExact": "v1.3.0"
+		},
+		{
+			"checksumSHA1": "pYoO37aSFZl2uJAXpePBDnGItZc=",
+			"path": "github.com/jawher/mow.cli",
+			"revision": "d3ffbc2f98b83e09dc8efd55ecec75eb5fd656ec",
+			"revisionTime": "2017-02-20T22:51:54Z"
+		},
+		{
+			"checksumSHA1": "GnYsUxBxUHGDBIaCeQbMdYUCzkA=",
+			"path": "github.com/jmoiron/jsonq",
+			"revision": "e874b168d07ecc7808bc950a17998a8aa3141d82",
+			"revisionTime": "2015-05-11T02:39:44Z"
+		}
+	],
+	"rootPath": "github.com/Financial-Times/kafka-lagcheck"
+}

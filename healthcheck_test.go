@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/golang/go/src/pkg/errors"
+	"errors"
+	"io/ioutil"
 	"strings"
 	"testing"
-	"io/ioutil"
 )
 
 func TestConsumerStatus(t *testing.T) {
@@ -218,7 +218,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, 30)
+	h := newHealthcheck("", []string{"Concept"}, []string{}, 30)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -281,6 +281,21 @@ func TestConsumerList(t *testing.T) {
 			body: []byte(`{
 				"error": false,
 				"message": "consumer group status returned",
+				"consumers": [
+					"console-consumer-2324",
+					"lower-env1-kafka-bridge-2324",
+					"lower-env2-kafka-bridge-2324",
+					"console-consumer-98135"
+				]
+			}
+			`),
+			err:       nil,
+			consumers: []string{"console-consumer-2324", "lower-env1-kafka-bridge-2324", "console-consumer-98135"},
+		},
+		{
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
 				"consumers": []
 			}
 			`),
@@ -289,7 +304,7 @@ func TestConsumerList(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, 30)
+	h := newHealthcheck("", []string{"Concept"}, []string{"lower-env1"}, 30)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"
@@ -306,6 +321,41 @@ func TestConsumerList(t *testing.T) {
 		for i, c := range consumers {
 			if c != tc.consumers[i] {
 				t.Errorf("Consumers do not match. Expected: [%s]\nActual: [%s]", tc.consumers, consumers)
+			}
+		}
+	}
+}
+
+func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
+	var testCases = []struct {
+		whitelistedEnvs []string
+		consumers       []string
+		expected        []string
+	}{
+		{
+			whitelistedEnvs:[]string{},
+			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+			expected:[]string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+		},
+		{
+			whitelistedEnvs:[]string{"prod-env"},
+			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+			expected:[]string{"console-consumer", "prod-env-kafka-bridge"},
+		},
+		{
+			whitelistedEnvs:[]string{"prod-env", "pub-prod-env"},
+			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge", "pre-prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
+			expected:[]string{"console-consumer", "prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
+		},
+
+	}
+
+	for _, tc := range testCases {
+		h := newHealthcheck("", []string{""}, tc.whitelistedEnvs, 30)
+		filteredConsumers := h.filterOutNonRelatedKafkaBridges(tc.consumers)
+		for i, c := range filteredConsumers {
+			if c != tc.expected[i] {
+				t.Errorf("Consumers do not match. Expected: [%s]\nActual: [%s]", tc.expected, filteredConsumers)
 			}
 		}
 	}

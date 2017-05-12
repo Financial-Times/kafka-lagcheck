@@ -29,6 +29,12 @@ func main() {
 		Desc:   "Comma-separated list of kafka topics that we do not need to check for lags. (e.g. Concept,AnotherQ)",
 		EnvVar: "WHITELISTED_TOPICS",
 	})
+	whitelistedEnvironments := app.Strings(cli.StringsOpt{
+		Name:   "whitelisted-environments",
+		Value:  []string{},
+		Desc:   "Comma-separated list of environments that contain kafka bridges that we need to check for lags. (e.g. prod-uk, prod-us)",
+		EnvVar: "WHITELISTED_ENVS",
+	})
 	lagTolerance := app.Int(cli.IntOpt{
 		Name:   "lag-tolerance",
 		Value:  0,
@@ -38,7 +44,7 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *lagTolerance)
+		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *whitelistedEnvironments, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)

@@ -1,2 +1,4 @@
 kafka-lagcheck
 kafka-lagcheck.exe
+*.iml
+vendor/*/
