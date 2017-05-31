@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"time"
 
 	"testing"
@@ -428,8 +429,27 @@ func TestGTG(t *testing.T) {
 	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
 }
 
+type syncWriter struct {
+	sync.Mutex
+	buf bytes.Buffer
+}
+
+func (w *syncWriter) Write(p []byte) (n int, err error) {
+	w.Lock()
+	defer w.Unlock()
+
+	return w.buf.Write(p)
+}
+
+func (w *syncWriter) Bytes() []byte {
+	w.Lock()
+	defer w.Unlock()
+
+	return w.buf.Bytes()
+}
+
 func TestGTGLaggingBeyondLimit(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &syncWriter{}
 	initLogs(buf, buf, buf)
 
 	httpmock.Activate()
