@@ -3,7 +3,7 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "bVrDZENiBMj1q+q+Aa2QoMuwaWk=",
+			"checksumSHA1": "jd4AfgUztNE40RJyJzz/ViDJKEc=",
 			"path": "github.com/Financial-Times/go-fthealth",
 			"revision": "f9074331b3ab48bca0e6d0afc211a673d88ac925",
 			"revisionTime": "2016-06-16T09:04:59Z",
@@ -11,13 +11,13 @@
 			"versionExact": "0.1.0"
 		},
 		{
-			"checksumSHA1": "g/V4qrXjUGG9B+e3hB+4NAYJ5Gs=",
+			"checksumSHA1": "IkPM2QLv9urri7S49wzroQx9oXA=",
 			"path": "github.com/gorilla/context",
 			"revision": "08b5f424b9271eedf6f9f0ce86cb9396ed337a42",
 			"revisionTime": "2016-08-17T18:46:32Z"
 		},
 		{
-			"checksumSHA1": "F5dR3/i70EhSIMZfeIV+H8/PtvM=",
+			"checksumSHA1": "pLA4j6v1jGIQExmYHf40KjSfkM4=",
 			"path": "github.com/gorilla/mux",
 			"revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
 			"revisionTime": "2017-01-18T13:43:44Z",
@@ -25,16 +25,22 @@
 			"versionExact": "v1.3.0"
 		},
 		{
-			"checksumSHA1": "pYoO37aSFZl2uJAXpePBDnGItZc=",
+			"checksumSHA1": "rW0QSLVB0eUCzMdIL7yigeLBQ54=",
 			"path": "github.com/jawher/mow.cli",
 			"revision": "d3ffbc2f98b83e09dc8efd55ecec75eb5fd656ec",
 			"revisionTime": "2017-02-20T22:51:54Z"
 		},
 		{
-			"checksumSHA1": "GnYsUxBxUHGDBIaCeQbMdYUCzkA=",
+			"checksumSHA1": "muWASuZ+3Z3aUpkGEHQhwYqZ3n4=",
 			"path": "github.com/jmoiron/jsonq",
 			"revision": "e874b168d07ecc7808bc950a17998a8aa3141d82",
 			"revisionTime": "2015-05-11T02:39:44Z"
+		},
+		{
+			"checksumSHA1": "eMixaPTahRdSz6l2yOKtUOaAcJM=",
+			"path": "gopkg.in/jarcoal/httpmock.v1",
+			"revision": "cf52904a3cf0f78f199ecade6a6df8e245d5b25a",
+			"revisionTime": "2017-04-12T08:57:02Z"
 		}
 	],
 	"rootPath": "github.com/Financial-Times/kafka-lagcheck"
