@@ -5,12 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Financial-Times/go-fthealth"
-	"github.com/jmoiron/jsonq"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
+	"github.com/jmoiron/jsonq"
+)
+
+const (
+	systemCode = "kafka-lagcheck"
 )
 
 type healthcheck struct {
@@ -33,20 +38,41 @@ func (h *healthcheck) checkHealth(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
-		c := h.burrowUnavailableCheck(err)
-		fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", c)(w, r)
+		c := fthealth.HealthCheck{
+			SystemCode:  systemCode,
+			Name:        "Kafka consumer groups",
+			Description: "Verifies all the defined consumer groups if they have lags.",
+			Checks:      []fthealth.Check{h.burrowUnavailableCheck(err)},
+		}
+
+		fthealth.Handler(c)(w, r)
 		return
 	}
+
 	var consumerGroupChecks []fthealth.Check
 	for _, consumer := range consumerGroups {
 		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
 	}
 	if len(consumerGroups) == 0 {
-		c := h.noConsumerGroupsCheck()
-		fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", c)(w, r)
+		c := fthealth.HealthCheck{
+			SystemCode:  systemCode,
+			Name:        "Kafka consumer groups",
+			Description: "Verifies all the defined consumer groups if they have lags.",
+			Checks:      []fthealth.Check{h.noConsumerGroupsCheck()},
+		}
+
+		fthealth.Handler(c)(w, r)
 		return
 	}
-	fthealth.HandlerParallel("Kafka consumer groups", "Verifies all the defined consumer groups if they have lags.", consumerGroupChecks...)(w, r)
+
+	c := fthealth.HealthCheck{
+		SystemCode:  systemCode,
+		Name:        "Kafka consumer groups",
+		Description: "Verifies all the defined consumer groups if they have lags.",
+		Checks:      consumerGroupChecks,
+	}
+
+	fthealth.Handler(c)(w, r)
 }
 
 func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
@@ -58,7 +84,7 @@ func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	for i, consumer := range consumerGroups {
-		if err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
+		if _, err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
 			warnLogger.Printf("lagging: %v", err)
 			// we can return the status straight away; for logging pass the rest off into a goroutine
 			writer.WriteHeader(http.StatusServiceUnavailable)
@@ -67,7 +93,7 @@ func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 			if i+1 < len(consumer) {
 				remaining = consumerGroups[i+1:]
 			}
-			
+
 			// and go check (and log) other consumers in the background
 			go h.checkRemainingConsumers(err.Error(), remaining)
 			return
@@ -78,7 +104,7 @@ func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
 func (h *healthcheck) checkRemainingConsumers(firstLaggingConsumerMsg string, remainingConsumers []string) {
 	consumerMsgs := []string{firstLaggingConsumerMsg}
 	for _, consumer := range remainingConsumers {
-		if err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
+		if _, err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
 			consumerMsgs = append(consumerMsgs, err.Error())
 		}
 	}
@@ -93,7 +119,7 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
-		Checker: func() error {
+		Checker: func() (string, error) {
 			return h.fetchAndCheckConsumerGroupForLags(consumer)
 		},
 	}
@@ -106,8 +132,8 @@ func (h *healthcheck) burrowUnavailableCheck(err error) fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly. %s", err.Error()),
-		Checker: func() error {
-			return errors.New("Error retrieving consumer group list.")
+		Checker: func() (string, error) {
+			return "", errors.New("Error retrieving consumer group list.")
 		},
 	}
 }
@@ -119,25 +145,25 @@ func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Can't see any consumers yet so no lags to report and could successfully connect to kafka. This usually should happen only on startup, please retry in a few moments, and if this case persists, take a more serious look at burrow and kafka.",
-		Checker: func() error {
-			return nil
+		Checker: func() (string, error) {
+			return "", nil
 		},
 	}
 }
 
-func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
+func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) (string, error) {
 	resp, err := http.Get(h.checkPrefix + consumerGroup + "/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
-		return err
+		return "", err
 	}
 	defer properClose(resp)
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
-		return errors.New(errMsg)
+		return "", errors.New(errMsg)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	return h.checkConsumerGroupForLags(body, consumerGroup)
+	return "", h.checkConsumerGroupForLags(body, consumerGroup)
 }
 
 func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
