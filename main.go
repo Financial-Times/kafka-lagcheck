@@ -1,12 +1,14 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
-	"github.com/jawher/mow.cli"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/gorilla/mux"
+	"github.com/jawher/mow.cli"
 )
 
 const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
@@ -17,11 +19,17 @@ var errorLogger *log.Logger
 
 func main() {
 	app := cli.App("aggregate-healthcheck", "Monitoring health of multiple services in cluster.")
-	hostMachine := app.String(cli.StringOpt{
-		Name:   "host-machine",
+	port := app.String(cli.StringOpt{
+		Name:   "port",
+		Value:  "8080",
+		Desc:   "Port to listen on",
+		EnvVar: "PORT",
+	})
+	burrowUrl := app.String(cli.StringOpt{
+		Name:   "burrow-url",
 		Value:  "",
-		Desc:   "Hostname of the machine this container runs on (e.g. ip-172-24-91-192.eu-west-1.compute.internal)",
-		EnvVar: "HOST_MACHINE",
+		Desc:   "Base URL at which Burrow is reachable (e.g. http://ip-172-24-91-192.eu-west-1.compute.internal:8080/__burrow)",
+		EnvVar: "BURROW_URL",
 	})
 	whitelistedTopics := app.Strings(cli.StringsOpt{
 		Name:   "whitelisted-topics",
@@ -44,13 +52,21 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		healthCheck := newHealthcheck(*hostMachine, *whitelistedTopics, *whitelistedEnvironments, *lagTolerance)
+
+		burrowAddress := *burrowUrl
+		if strings.HasSuffix(burrowAddress, "/") {
+			burrowAddress = burrowAddress[:len(burrowAddress)-1]
+		}
+
+		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *lagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)
-		err := http.ListenAndServe(":8080", router)
+
+		infoLogger.Printf("Kafka Lagcheck listening on port %v ...", *port)
+		err := http.ListenAndServe(":"+*port, router)
 		if err != nil {
-			errorLogger.Printf("Can't set up HTTP listener on 8080. %v", err)
+			errorLogger.Printf("Can't set up HTTP listener on %s. %v", *port, err)
 			os.Exit(1)
 		}
 	}

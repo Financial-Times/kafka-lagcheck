@@ -1,10 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
+	"time"
+
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/jarcoal/httpmock.v1"
 )
 
 func TestConsumerStatus(t *testing.T) {
@@ -333,21 +343,20 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 		expected        []string
 	}{
 		{
-			whitelistedEnvs:[]string{},
-			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
-			expected:[]string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+			whitelistedEnvs: []string{},
+			consumers:       []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+			expected:        []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
 		},
 		{
-			whitelistedEnvs:[]string{"prod-env"},
-			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
-			expected:[]string{"console-consumer", "prod-env-kafka-bridge"},
+			whitelistedEnvs: []string{"prod-env"},
+			consumers:       []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge"},
+			expected:        []string{"console-consumer", "prod-env-kafka-bridge"},
 		},
 		{
-			whitelistedEnvs:[]string{"prod-env", "pub-prod-env"},
-			consumers: []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge", "pre-prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
-			expected:[]string{"console-consumer", "prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
+			whitelistedEnvs: []string{"prod-env", "pub-prod-env"},
+			consumers:       []string{"console-consumer", "prod-env-kafka-bridge", "lower-env-kafka-bridge", "pre-prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
+			expected:        []string{"console-consumer", "prod-env-kafka-bridge", "pub-prod-env-kafka-bridge"},
 		},
-
 	}
 
 	for _, tc := range testCases {
@@ -359,4 +368,211 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGTG(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	burrowUrl := "http://burrow.example.com"
+
+	consumers := map[string]interface{}{
+		"error":     false,
+		"message":   "consumer list returned",
+		"consumers": []string{"consumer1", "consumer2"},
+	}
+	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+
+	consumerStatus := []map[string]interface{}{
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        0,
+			},
+		},
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        0,
+			},
+		},
+	}
+	for i, status := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, status)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+	}
+
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0)
+
+	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
+	w := httptest.NewRecorder()
+	h.gtg(w, req)
+
+	actual := *w.Result()
+	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
+}
+
+type syncWriter struct {
+	sync.Mutex
+	buf bytes.Buffer
+}
+
+func (w *syncWriter) Write(p []byte) (n int, err error) {
+	w.Lock()
+	defer w.Unlock()
+
+	return w.buf.Write(p)
+}
+
+func (w *syncWriter) Bytes() []byte {
+	w.Lock()
+	defer w.Unlock()
+
+	return w.buf.Bytes()
+}
+
+func TestGTGLaggingBeyondLimit(t *testing.T) {
+	buf := &syncWriter{}
+	initLogs(buf, buf, buf)
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	burrowUrl := "http://burrow.example.com"
+
+	consumers := map[string]interface{}{
+		"error":     false,
+		"message":   "consumer list returned",
+		"consumers": []string{"consumer1", "consumer2"},
+	}
+	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+
+	consumerStatus := []map[string]interface{}{
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        10,
+			},
+		},
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        6,
+			},
+		},
+	}
+	for i, status := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, status)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+	}
+
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5)
+
+	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
+	w := httptest.NewRecorder()
+	h.gtg(w, req)
+	actual := *w.Result()
+	assert.Equal(t, actual.StatusCode, http.StatusServiceUnavailable, "GTG HTTP status")
+
+	// give a little time for logging goroutine to catch up
+	time.Sleep(100 * time.Millisecond)
+
+	logs := string(buf.Bytes())
+	for i, status := range consumerStatus {
+		expected := fmt.Sprintf(".*Lagging consumers:.+consumer%d consumer group is lagging behind with %d messages.*", i+1, status["status"].(map[string]interface{})["totallag"])
+		assert.Regexp(t, expected, logs, "lagging consumer log")
+	}
+}
+
+func TestGTGLaggingWithinLimit(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	burrowUrl := "http://burrow.example.com"
+
+	consumers := map[string]interface{}{
+		"error":     false,
+		"message":   "consumer list returned",
+		"consumers": []string{"consumer1", "consumer2"},
+	}
+	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+
+	consumerStatus := []map[string]interface{}{
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        10,
+			},
+		},
+		map[string]interface{}{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					map[string]interface{}{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        0,
+			},
+		},
+	}
+	for i, status := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, status)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+	}
+
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10)
+
+	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
+	w := httptest.NewRecorder()
+	h.gtg(w, req)
+
+	actual := *w.Result()
+	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
 }
