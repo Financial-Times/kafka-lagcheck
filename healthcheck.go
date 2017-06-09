@@ -174,28 +174,43 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
 		return errors.New("Could not decode response body to json.")
 	}
+
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
 		return errors.New("Couldn't unmarshall consumer status.")
 	}
+
 	if statusError {
 		warnLogger.Printf("Consumer status response is an error: %v", string(body))
 		return errors.New("Consumer status response is an error.")
 	}
+
+	status, err := jq.String("status", "status")
+	if err != nil {
+		warnLogger.Printf("Couldn't unmarshall status>status: %v %v", string(body), err.Error())
+		return errors.New("Couldn't unmarshall status > status")
+	}
+
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
 		return errors.New("Couldn't unmarshall totallag.")
 	}
+
 	if totalLag > h.lagTolerance {
-		return h.ignoreWhitelistedTopics(jq, body, totalLag, consumerGroup)
+		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
 	}
+
+	if status != "OK" && totalLag != 0 { // this prevents old / unused consumer groups from causing lags
+		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
+	}
+
 	return nil
 }
 
-func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, lag int, consumerGroup string) error {
+func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, status string, lag int, consumerGroup string) error {
 	topic1, err1 := jq.String("status", "maxlag", "topic")
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
@@ -211,7 +226,7 @@ func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 			return nil
 		}
 	}
-	return fmt.Errorf("%s consumer group is lagging behind with %d messages", consumerGroup, lag)
+	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s", consumerGroup, lag, status)
 }
 
 func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
