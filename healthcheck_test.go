@@ -96,7 +96,7 @@ func TestConsumerStatus(t *testing.T) {
 				}
 			}
 			`),
-			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 31 messages"),
+			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 31 messages. Status of the consumer group is OK"),
 		},
 		{
 			/*
@@ -133,7 +133,7 @@ func TestConsumerStatus(t *testing.T) {
 				}
 			}
 			`),
-			err: nil,
+			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 9 messages. Status of the consumer group is WARNING"),
 		},
 		{
 			// No problems at all
@@ -241,6 +241,50 @@ func TestConsumerStatus(t *testing.T) {
 		}
 		if expectedMsg != actualMsg {
 			t.Errorf("Expected: [%s]\nActual: [%s]", expectedMsg, actualMsg)
+		}
+	}
+}
+
+func TestUnmarshalBurrowResponseFails(t *testing.T) {
+	testCases := []struct {
+		body  []byte
+		err   string
+		fails bool
+	}{
+		{
+			body:  []byte(``),
+			err:   "Could not decode response body to json.",
+			fails: true,
+		},
+		{
+			body:  []byte(`{"error": null}`),
+			err:   "Couldn't unmarshall consumer status.",
+			fails: true,
+		},
+		{
+			body:  []byte(`{"error":false, "status": {}}`),
+			err:   "Couldn't unmarshall status > status",
+			fails: true,
+		},
+		{
+			body:  []byte(`{"error":false, "status": {"status":1,"totallag": "hi"}}`),
+			err:   "Couldn't unmarshall status > status",
+			fails: true,
+		},
+		{
+			body:  []byte(`{"error":false, "status": {"status":"any string","totallag": "hi"}}`),
+			err:   "Couldn't unmarshall totallag.",
+			fails: true,
+		},
+	}
+
+	h := newHealthcheck("", []string{"Concept"}, []string{}, 30)
+	for _, tc := range testCases {
+		err := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
+		if tc.fails {
+			assert.EqualError(t, err, tc.err)
+		} else {
+			assert.NoError(t, err)
 		}
 	}
 }
