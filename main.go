@@ -45,14 +45,14 @@ func main() {
 	})
 	maxLagTolerance := app.Int(cli.IntOpt{
 		Name:   "max-lag-tolerance",
-		Value:  0,
-		Desc:   "Number of messages that can pile up before warning when Burrow reports no ERR. (e.g. 1000)",
+		Value:  1000,
+		Desc:   "Number of messages that can pile up before warning when Burrow reports no ERR.",
 		EnvVar: "MAX_LAG_TOLERANCE",
 	})
 	errLagTolerance := app.Int(cli.IntOpt{
 		Name:   "err-lag-tolerance",
-		Value:  0,
-		Desc:   "Number of messages that can pile up before warning when Burrow reports there is an ERR. (e.g. 30)",
+		Value:  30,
+		Desc:   "Number of messages that can pile up before warning when Burrow reports there is an ERR.",
 		EnvVar: "ERR_LAG_TOLERANCE",
 	})
 
