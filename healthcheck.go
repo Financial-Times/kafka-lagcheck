@@ -22,15 +22,17 @@ type healthcheck struct {
 	whitelistedTopics []string
 	whitelistedEnvs   []string
 	checkPrefix       string
-	lagTolerance      int
+	maxLagTolerance   int
+	errLagTolerance   int
 }
 
-func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, lagTolerance int) *healthcheck {
+func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *healthcheck {
 	return &healthcheck{
 		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
 		whitelistedEnvs:   whitelistedEnvs,
-		lagTolerance:      lagTolerance,
+		maxLagTolerance:   maxLagTolerance,
+		errLagTolerance:   errLagTolerance,
 	}
 }
 
@@ -199,11 +201,11 @@ func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup strin
 		return errors.New("Couldn't unmarshall totallag.")
 	}
 
-	if totalLag > h.lagTolerance {
+	if totalLag > h.maxLagTolerance {
 		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
 	}
 
-	if status != "OK" && totalLag != 0 { // this prevents old / unused consumer groups from causing lags
+	if status != "OK" && totalLag > h.errLagTolerance { // this prevents old / unused consumer groups from causing lags
 		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
 	}
 
