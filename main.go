@@ -43,11 +43,17 @@ func main() {
 		Desc:   "Comma-separated list of environments that contain kafka bridges that we need to check for lags. (e.g. prod-uk, prod-us)",
 		EnvVar: "WHITELISTED_ENVS",
 	})
-	lagTolerance := app.Int(cli.IntOpt{
-		Name:   "lag-tolerance",
+	maxLagTolerance := app.Int(cli.IntOpt{
+		Name:   "max-lag-tolerance",
 		Value:  0,
-		Desc:   "Number of messages that can pile up before warning. (e.g. 5)",
-		EnvVar: "LAG_TOLERANCE",
+		Desc:   "Number of messages that can pile up before warning when Burrow reports no ERR. (e.g. 1000)",
+		EnvVar: "MAX_LAG_TOLERANCE",
+	})
+	errLagTolerance := app.Int(cli.IntOpt{
+		Name:   "err-lag-tolerance",
+		Value:  0,
+		Desc:   "Number of messages that can pile up before warning when Burrow reports there is an ERR. (e.g. 30)",
+		EnvVar: "ERR_LAG_TOLERANCE",
 	})
 
 	app.Action = func() {
@@ -58,7 +64,7 @@ func main() {
 			burrowAddress = burrowAddress[:len(burrowAddress)-1]
 		}
 
-		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *lagTolerance)
+		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)

@@ -100,8 +100,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 		{
 			/*
-				Lag is not 0 but below threshold.
-				Burrow is not returning an OK status, according to its evaluation rules, but all we care is about lag number.
+				Lag is more than 5 and burrow is not returning an OK status.
 				https://github.com/linkedin/Burrow/wiki/Consumer-Lag-Evaluation-Rules
 			*/
 			body: []byte(`{
@@ -134,6 +133,42 @@ func TestConsumerStatus(t *testing.T) {
 			}
 			`),
 			err: errors.New("xp-notifications-push-2 consumer group is lagging behind with 9 messages. Status of the consumer group is WARNING"),
+		},
+		{
+			/*
+				Lag is less than 5 and burrow is not returning an OK status.
+				https://github.com/linkedin/Burrow/wiki/Consumer-Lag-Evaluation-Rules
+			*/
+			body: []byte(`{
+				"error": false,
+				"message": "consumer group status returned",
+				"status": {
+					"cluster": "local",
+					"group": "xp-notifications-push-2",
+					"status": "WARNING",
+					"complete": true,
+					"partitions": [ ],
+					"partition_count": 1,
+					"maxlag": {
+						"topic": "CmsPublicationEvents",
+						"partition": 0,
+						"status": "WARNING",
+						"start": {
+							"offset": 2779051,
+							"timestamp": 1474992081559,
+							"lag": 1
+						},
+						"end": {
+							"offset": 2779316,
+							"timestamp": 1474992621559,
+							"lag": 9
+						}
+					},
+					"totallag": 4
+				}
+			}
+			`),
+			err: nil,
 		},
 		{
 			// No problems at all
@@ -228,7 +263,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, []string{}, 30)
+	h := newHealthcheck("", []string{"Concept"}, []string{}, 30, 5)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -278,7 +313,7 @@ func TestUnmarshalBurrowResponseFails(t *testing.T) {
 		},
 	}
 
-	h := newHealthcheck("", []string{"Concept"}, []string{}, 30)
+	h := newHealthcheck("", []string{"Concept"}, []string{}, 30, 10)
 	for _, tc := range testCases {
 		err := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		if tc.fails {
@@ -358,7 +393,7 @@ func TestConsumerList(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, []string{"lower-env1"}, 30)
+	h := newHealthcheck("", []string{"Concept"}, []string{"lower-env1"}, 30, 10)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"
@@ -404,7 +439,7 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		h := newHealthcheck("", []string{""}, tc.whitelistedEnvs, 30)
+		h := newHealthcheck("", []string{""}, tc.whitelistedEnvs, 30, 10)
 		filteredConsumers := h.filterOutNonRelatedKafkaBridges(tc.consumers)
 		for i, c := range filteredConsumers {
 			if c != tc.expected[i] {
@@ -463,7 +498,7 @@ func TestGTG(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0)
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0, 0)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
@@ -544,7 +579,7 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5)
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5, 1)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
@@ -611,7 +646,7 @@ func TestGTGLaggingWithinLimit(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10)
+	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10, 5)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
