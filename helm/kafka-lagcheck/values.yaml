@@ -1,0 +1,17 @@
+# Default values for kafka-lagcheck.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+service:
+  name: "" # The name of the service, should be defined in the specific app-configs folder.
+  hasHealthcheck: "true"
+replicaCount: 1
+image:
+  repository: coco/kafka-lagcheck
+  pullPolicy: IfNotPresent
+resources:
+  limits:
+    memory: 256Mi
+env:
+  WHITELISTED_TOPICS: ""
+  BURROW_URL: ""
+  LAG_TOLERANCE: ""
