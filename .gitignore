@@ -1,4 +1,6 @@
-.idea/
+kafka-lagcheck*
+*.iml
 vendor/*/
-/kafka-lagcheck
-kafka-lagcheck.exe
+.project
+.vscode
+.idea

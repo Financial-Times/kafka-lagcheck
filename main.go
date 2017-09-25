@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
@@ -18,9 +19,16 @@ var errorLogger *log.Logger
 
 func main() {
 	app := cli.App("aggregate-healthcheck", "Monitoring health of multiple services in cluster.")
-	burrowURL := app.String(cli.StringOpt{
+	port := app.String(cli.StringOpt{
+		Name:   "port",
+		Value:  "8080",
+		Desc:   "Port to listen on",
+		EnvVar: "PORT",
+	})
+	burrowUrl := app.String(cli.StringOpt{
 		Name:   "burrow-url",
-		Desc:   "The URL for the burrow service (e.g. http://burrow:8080)",
+		Value:  "",
+		Desc:   "Base URL at which Burrow is reachable (e.g. http://ip-172-24-91-192.eu-west-1.compute.internal:8080/__burrow)",
 		EnvVar: "BURROW_URL",
 	})
 	whitelistedTopics := app.Strings(cli.StringsOpt{
@@ -29,22 +37,42 @@ func main() {
 		Desc:   "Comma-separated list of kafka topics that we do not need to check for lags. (e.g. Concept,AnotherQ)",
 		EnvVar: "WHITELISTED_TOPICS",
 	})
-	lagTolerance := app.Int(cli.IntOpt{
-		Name:   "lag-tolerance",
-		Value:  0,
-		Desc:   "Number of messages that can pile up before warning. (e.g. 5)",
-		EnvVar: "LAG_TOLERANCE",
+	whitelistedEnvironments := app.Strings(cli.StringsOpt{
+		Name:   "whitelisted-environments",
+		Value:  []string{},
+		Desc:   "Comma-separated list of environments that contain kafka bridges that we need to check for lags. (e.g. prod-uk, prod-us)",
+		EnvVar: "WHITELISTED_ENVS",
+	})
+	maxLagTolerance := app.Int(cli.IntOpt{
+		Name:   "max-lag-tolerance",
+		Value:  1000,
+		Desc:   "Number of messages that can pile up before warning when Burrow reports no ERR.",
+		EnvVar: "MAX_LAG_TOLERANCE",
+	})
+	errLagTolerance := app.Int(cli.IntOpt{
+		Name:   "err-lag-tolerance",
+		Value:  30,
+		Desc:   "Number of messages that can pile up before warning when Burrow reports there is an ERR.",
+		EnvVar: "ERR_LAG_TOLERANCE",
 	})
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		healthCheck := newHealthcheck(*burrowURL, *whitelistedTopics, *lagTolerance)
+
+		burrowAddress := *burrowUrl
+		if strings.HasSuffix(burrowAddress, "/") {
+			burrowAddress = burrowAddress[:len(burrowAddress)-1]
+		}
+
+		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
 		router := mux.NewRouter()
 		router.HandleFunc("/__health", healthCheck.checkHealth)
 		router.HandleFunc("/__gtg", healthCheck.gtg)
-		err := http.ListenAndServe(":8080", router)
+
+		infoLogger.Printf("Kafka Lagcheck listening on port %v ...", *port)
+		err := http.ListenAndServe(":"+*port, router)
 		if err != nil {
-			errorLogger.Printf("Can't set up HTTP listener on 8080. %v", err)
+			errorLogger.Printf("Can't set up HTTP listener on %s. %v", *port, err)
 			os.Exit(1)
 		}
 	}

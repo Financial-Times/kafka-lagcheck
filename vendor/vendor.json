@@ -3,28 +3,32 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "bVrDZENiBMj1q+q+Aa2QoMuwaWk=",
-			"path": "github.com/Financial-Times/go-fthealth",
-			"revision": "f9074331b3ab48bca0e6d0afc211a673d88ac925",
-			"revisionTime": "2016-06-16T09:04:59Z"
+			"checksumSHA1": "fNgRM8ZlaDzdvSpuhSdGxEOrWi4=",
+			"path": "github.com/Financial-Times/go-fthealth/v1_1",
+			"revision": "e7ccca038327a0091303a52445ec1f0fb66cb97b",
+			"revisionTime": "2017-05-25T09:50:41Z",
+			"version": "0.3.0",
+			"versionExact": "0.3.0"
 		},
 		{
-			"checksumSHA1": "bXl563KTWcDqDoVQXmqd53uhbpk=",
-			"path": "github.com/golang/go/src/pkg/errors",
-			"revision": "6174b5e21e73714c63061e66efdbe180e1c5491d",
-			"revisionTime": "2012-03-28T12:41:59Z"
+			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
+			"revisionTime": "2016-10-29T20:57:26Z"
 		},
 		{
-			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
+			"checksumSHA1": "g/V4qrXjUGG9B+e3hB+4NAYJ5Gs=",
 			"path": "github.com/gorilla/context",
-			"revision": "aed02d124ae4a0e94fea4541c8effd05bf0c8296",
-			"revisionTime": "2016-05-25T20:33:19Z"
+			"revision": "08b5f424b9271eedf6f9f0ce86cb9396ed337a42",
+			"revisionTime": "2016-08-17T18:46:32Z"
 		},
 		{
-			"checksumSHA1": "zmCk+lgIeiOf0Ng9aFP9aFy8ksE=",
+			"checksumSHA1": "F5dR3/i70EhSIMZfeIV+H8/PtvM=",
 			"path": "github.com/gorilla/mux",
-			"revision": "599cba5e7b6137d46ddf58fb1765f5d928e69604",
-			"revisionTime": "2017-02-28T22:43:54Z"
+			"revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
+			"revisionTime": "2017-01-18T13:43:44Z",
+			"version": "v1.3.0",
+			"versionExact": "v1.3.0"
 		},
 		{
 			"checksumSHA1": "pYoO37aSFZl2uJAXpePBDnGItZc=",
@@ -37,6 +41,26 @@
 			"path": "github.com/jmoiron/jsonq",
 			"revision": "e874b168d07ecc7808bc950a17998a8aa3141d82",
 			"revisionTime": "2015-05-11T02:39:44Z"
+		},
+		{
+			"checksumSHA1": "LuFv4/jlrmFNnDb/5SCSEPAM9vU=",
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"revisionTime": "2016-01-10T10:55:54Z"
+		},
+		{
+			"checksumSHA1": "q1qqfgDOGwfEuMlbHWNjYf09ACM=",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "69483b4bd14f5845b5a1e55bca19e954e827f1d0",
+			"revisionTime": "2016-09-25T01:54:16Z",
+			"version": "v1.1.4",
+			"versionExact": "v1.1.4"
+		},
+		{
+			"checksumSHA1": "Wx2FYL6OLgZ/9PF1nb+hhNoXcTo=",
+			"path": "gopkg.in/jarcoal/httpmock.v1",
+			"revision": "cf52904a3cf0f78f199ecade6a6df8e245d5b25a",
+			"revisionTime": "2017-04-12T08:57:02Z"
 		}
 	],
 	"rootPath": "github.com/Financial-Times/kafka-lagcheck"

@@ -18,9 +18,8 @@ RUN apk add --no-cache --virtual .build-dependencies git \
   && BUILDER="builder=$(go version)" \
   && LDFLAGS="-X '"${BUILDINFO_PACKAGE}$VERSION"' -X '"${BUILDINFO_PACKAGE}$DATETIME"' -X '"${BUILDINFO_PACKAGE}$REPOSITORY"' -X '"${BUILDINFO_PACKAGE}$REVISION"' -X '"${BUILDINFO_PACKAGE}$BUILDER"'" \
   && echo "Fetching dependencies..." \
-  && go get -d -t -v \
-  && echo "Running tests..." \
-  && go test \
+  && go get -u github.com/kardianos/govendor \
+  && $GOPATH/bin/govendor sync \
   && echo "Building app..." \
   && echo "Build flags: $LDFLAGS" \
   && CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="${LDFLAGS}" -o /${PROJECT} ${REPO_PATH} \
@@ -29,4 +28,4 @@ RUN apk add --no-cache --virtual .build-dependencies git \
 
 WORKDIR /
 # Using the expanded command, so that the shell will expand the $PROJECT env var. See https://docs.docker.com/engine/reference/builder/#cmd
-CMD ["sh", "-c", "/${PROJECT}"]
+CMD ["/kafka-lagcheck"]
