@@ -5,4 +5,5 @@ service:
 env:
   WHITELISTED_TOPICS: "Concept"
   BURROW_URL: "http://burrow:8080"
-  LAG_TOLERANCE: 30
+  ERR_LAG_TOLERANCE: 20
+  MAX_LAG_TOLERANCE: 1000

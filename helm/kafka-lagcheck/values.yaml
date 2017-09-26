@@ -14,4 +14,5 @@ resources:
 env:
   WHITELISTED_TOPICS: ""
   BURROW_URL: ""
-  LAG_TOLERANCE: ""
+  MAX_LAG_TOLERANCE: ""
+  ERR_LAG_TOLERANCE: ""
