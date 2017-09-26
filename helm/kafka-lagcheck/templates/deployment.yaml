@@ -25,6 +25,11 @@ spec:
         env:
         - name: WHITELISTED_TOPICS
           value: {{ .Values.env.WHITELISTED_TOPICS }}
+        - name: WHITELISTED_ENVS
+          valueFrom:
+            configMapKeyRef:
+              name: global-config
+              key: kafka-lagcheck.whitelisted-envs
         - name: BURROW_URL
           value: {{ .Values.env.BURROW_URL }}
         - name: MAX_LAG_TOLERANCE
