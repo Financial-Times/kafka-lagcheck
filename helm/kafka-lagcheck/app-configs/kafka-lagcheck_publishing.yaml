@@ -1,0 +1,9 @@
+# Values used for the deployed application.
+replicaCount: 1
+service:
+  name: kafka-lagcheck
+env:
+  WHITELISTED_TOPICS: "Concept"
+  BURROW_URL: "http://burrow:8080"
+  ERR_LAG_TOLERANCE: 20
+  MAX_LAG_TOLERANCE: 1000

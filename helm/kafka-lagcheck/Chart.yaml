@@ -1,0 +1,4 @@
+apiVersion: v1
+description: kafka-lagcheck Helm chart for Kubernetes
+name: kafka-lagcheck
+version: 0.0.0  # this entry can be left untouched as it is automatically handled by Jenkins pipeline
