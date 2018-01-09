@@ -34,7 +34,7 @@ spec:
           value: {{ .Values.env.BURROW_URL }}
         - name: MAX_LAG_TOLERANCE
           value: "{{ .Values.env.MAX_LAG_TOLERANCE }}"
-        - name: MAX_LAG_TOLERANCE
+        - name: ERR_LAG_TOLERANCE
           value: "{{ .Values.env.ERR_LAG_TOLERANCE }}"
         ports:
         - containerPort: 8080
