@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	status "github.com/Financial-Times/service-status-go/httphandlers"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
 )
@@ -66,8 +68,8 @@ func main() {
 
 		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
 		router := mux.NewRouter()
-		router.HandleFunc("/__health", healthCheck.checkHealth)
-		router.HandleFunc("/__gtg", healthCheck.gtg)
+		router.Path("/__health").Handler(handlers.MethodHandler{"GET": http.HandlerFunc(healthCheck.Health())})
+		router.Path(status.GTGPath).Handler(handlers.MethodHandler{"GET": http.HandlerFunc(status.NewGoodToGoHandler(healthCheck.GTG))})
 
 		infoLogger.Printf("Kafka Lagcheck listening on port %v ...", *port)
 		err := http.ListenAndServe(":"+*port, router)

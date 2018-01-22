@@ -9,8 +9,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
+	"github.com/Financial-Times/service-status-go/gtg"
 	"github.com/jmoiron/jsonq"
 )
 
@@ -36,19 +38,20 @@ func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnv
 	}
 }
 
-func (h *healthcheck) checkHealth(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheck) Health() func(w http.ResponseWriter, r *http.Request) {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
-		c := fthealth.HealthCheck{
-			SystemCode:  systemCode,
-			Name:        "Kafka consumer groups",
-			Description: "Verifies all the defined consumer groups if they have lags.",
-			Checks:      []fthealth.Check{h.burrowUnavailableCheck(err)},
+		c := fthealth.TimedHealthCheck{
+			HealthCheck: fthealth.HealthCheck{
+				SystemCode:  systemCode,
+				Name:        "Kafka consumer groups",
+				Description: "Verifies all the defined consumer groups if they have lags.",
+				Checks:      []fthealth.Check{h.burrowUnavailableCheck(err)},
+			},
+			Timeout: 10 * time.Second,
 		}
-
-		fthealth.Handler(c)(w, r)
-		return
+		return fthealth.Handler(c)
 	}
 
 	var consumerGroupChecks []fthealth.Check
@@ -56,51 +59,66 @@ func (h *healthcheck) checkHealth(w http.ResponseWriter, r *http.Request) {
 		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
 	}
 	if len(consumerGroups) == 0 {
-		c := fthealth.HealthCheck{
+		c := fthealth.TimedHealthCheck{
+			HealthCheck: fthealth.HealthCheck{
+				SystemCode:  systemCode,
+				Name:        "Kafka consumer groups",
+				Description: "Verifies all the defined consumer groups if they have lags.",
+				Checks:      []fthealth.Check{h.noConsumerGroupsCheck()},
+			},
+			Timeout: 10 * time.Second,
+		}
+		return fthealth.Handler(c)
+	}
+
+	c := fthealth.TimedHealthCheck{
+		HealthCheck: fthealth.HealthCheck{
 			SystemCode:  systemCode,
 			Name:        "Kafka consumer groups",
 			Description: "Verifies all the defined consumer groups if they have lags.",
-			Checks:      []fthealth.Check{h.noConsumerGroupsCheck()},
-		}
-
-		fthealth.Handler(c)(w, r)
-		return
+			Checks:      consumerGroupChecks,
+		},
+		Timeout: 10 * time.Second,
 	}
-
-	c := fthealth.HealthCheck{
-		SystemCode:  systemCode,
-		Name:        "Kafka consumer groups",
-		Description: "Verifies all the defined consumer groups if they have lags.",
-		Checks:      consumerGroupChecks,
-	}
-
-	fthealth.Handler(c)(w, r)
+	return fthealth.Handler(c)
 }
 
-func (h *healthcheck) gtg(writer http.ResponseWriter, req *http.Request) {
+func (h *healthcheck) GTG() gtg.Status {
 	consumerGroups, err := h.fetchAndParseConsumerGroups()
 	if err != nil {
 		warnLogger.Println(err.Error())
-		writer.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-
-	for i, consumer := range consumerGroups {
-		if _, err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
-			warnLogger.Printf("lagging: %v", err)
-			// we can return the status straight away; for logging pass the rest off into a goroutine
-			writer.WriteHeader(http.StatusServiceUnavailable)
-
-			remaining := []string{}
-			if i+1 < len(consumer) {
-				remaining = consumerGroups[i+1:]
-			}
-
-			// and go check (and log) other consumers in the background
-			go h.checkRemainingConsumers(err.Error(), remaining)
-			return
+		f := func() gtg.Status {
+			return gtgCheck(func() (string, error) {
+				_, err := h.fetchAndParseConsumerGroups()
+				if err != nil {
+					return "", err
+				}
+				return "", nil
+			})
 		}
+		return gtg.FailFastParallelCheck([]gtg.StatusChecker{f})()
 	}
+
+	gtgs := []gtg.StatusChecker{}
+	for _, consumer := range consumerGroups {
+		gtgF := func() gtg.Status {
+			return gtgCheck(
+				func() (string, error) {
+					return h.fetchAndCheckConsumerGroupForLags(consumer)
+				},
+			)
+		}
+		gtgs = append(gtgs, gtgF)
+	}
+
+	return gtg.FailFastParallelCheck(gtgs)()
+}
+
+func gtgCheck(handler func() (string, error)) gtg.Status {
+	if _, err := handler(); err != nil {
+		return gtg.Status{GoodToGo: false, Message: err.Error()}
+	}
+	return gtg.Status{GoodToGo: true}
 }
 
 func (h *healthcheck) checkRemainingConsumers(firstLaggingConsumerMsg string, remainingConsumers []string) {
