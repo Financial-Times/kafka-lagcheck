@@ -10,7 +10,9 @@ image:
   pullPolicy: IfNotPresent
 resources:
   limits:
-    memory: 256Mi
+    memory: 32Mi
+  requests:
+    memory: 16Mi
 env:
   WHITELISTED_TOPICS: ""
   BURROW_URL: ""

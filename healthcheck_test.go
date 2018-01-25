@@ -13,6 +13,7 @@ import (
 
 	"testing"
 
+	status "github.com/Financial-Times/service-status-go/httphandlers"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/jarcoal/httpmock.v1"
 )
@@ -502,7 +503,7 @@ func TestGTG(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
-	h.gtg(w, req)
+	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
 
 	actual := *w.Result()
 	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
@@ -583,7 +584,7 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
-	h.gtg(w, req)
+	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
 	actual := *w.Result()
 	assert.Equal(t, actual.StatusCode, http.StatusServiceUnavailable, "GTG HTTP status")
 
@@ -591,8 +592,8 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	logs := string(buf.Bytes())
-	for i, status := range consumerStatus {
-		expected := fmt.Sprintf(".*Lagging consumers:.+consumer%d consumer group is lagging behind with %d messages.*", i+1, status["status"].(map[string]interface{})["totallag"])
+	for _, status := range consumerStatus {
+		expected := fmt.Sprintf(".*Lagging consumers:.+consumer[\\d] consumer group is lagging behind with %d messages.*", status["status"].(map[string]interface{})["totallag"])
 		assert.Regexp(t, expected, logs, "lagging consumer log")
 	}
 }
@@ -650,7 +651,7 @@ func TestGTGLaggingWithinLimit(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
-	h.gtg(w, req)
+	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
 
 	actual := *w.Result()
 	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
