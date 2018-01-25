@@ -101,10 +101,11 @@ func (h *healthcheck) GTG() gtg.Status {
 
 	gtgs := []gtg.StatusChecker{}
 	for _, consumer := range consumerGroups {
+		consumerCopy := consumer
 		gtgF := func() gtg.Status {
 			return gtgCheck(
 				func() (string, error) {
-					return h.fetchAndCheckConsumerGroupForLags(consumer)
+					return h.fetchAndCheckConsumerGroupForLags(consumerCopy)
 				},
 			)
 		}
@@ -119,17 +120,6 @@ func gtgCheck(handler func() (string, error)) gtg.Status {
 		return gtg.Status{GoodToGo: false, Message: err.Error()}
 	}
 	return gtg.Status{GoodToGo: true}
-}
-
-func (h *healthcheck) checkRemainingConsumers(firstLaggingConsumerMsg string, remainingConsumers []string) {
-	consumerMsgs := []string{firstLaggingConsumerMsg}
-	for _, consumer := range remainingConsumers {
-		if _, err := h.fetchAndCheckConsumerGroupForLags(consumer); err != nil {
-			consumerMsgs = append(consumerMsgs, err.Error())
-		}
-	}
-
-	warnLogger.Printf("Lagging consumers: [%s]", strings.Join(consumerMsgs, ","))
 }
 
 func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
@@ -183,7 +173,11 @@ func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) (s
 		return "", errors.New(errMsg)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	return "", h.checkConsumerGroupForLags(body, consumerGroup)
+	lagErr := h.checkConsumerGroupForLags(body, consumerGroup)
+	if lagErr != nil {
+		warnLogger.Printf("Lagging consumers: [%s]", lagErr.Error())
+	}
+	return "", lagErr
 }
 
 func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {

@@ -592,8 +592,8 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	logs := string(buf.Bytes())
-	for i, status := range consumerStatus {
-		expected := fmt.Sprintf(".*Lagging consumers:.+consumer%d consumer group is lagging behind with %d messages.*", i+1, status["status"].(map[string]interface{})["totallag"])
+	for _, status := range consumerStatus {
+		expected := fmt.Sprintf(".*Lagging consumers:.+consumer[\\d] consumer group is lagging behind with %d messages.*", status["status"].(map[string]interface{})["totallag"])
 		assert.Regexp(t, expected, logs, "lagging consumer log")
 	}
 }
