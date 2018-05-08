@@ -28,6 +28,17 @@ spec:
                 values:
                 - {{ .Values.service.name }}
             topologyKey: "kubernetes.io/hostname"
+      initContainers:
+      - name: waitforburrow
+        image: "alpine:3.7"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ['/bin/sh','-c',
+        'apk update; apk add netcat-openbsd
+        i=0;
+        while [ $i -lt 120 ]; do
+          nc -zw 5 burrow 8080 && break;
+          let i=i+5;
+        done']
       containers:
       - name: {{ .Values.service.name }}
         image: "{{ .Values.image.repository }}:{{ .Chart.Version }}"
