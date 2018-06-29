@@ -30,7 +30,7 @@ type healthcheck struct {
 
 func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *healthcheck {
 	return &healthcheck{
-		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
+		checkPrefix:       burrowUrl + "/v3/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
 		whitelistedEnvs:   whitelistedEnvs,
 		maxLagTolerance:   maxLagTolerance,
@@ -128,7 +128,7 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 		Name:             "Consumer group " + consumer + " is lagging.",
 		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
 		Severity:         1,
-		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
+		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v3/kafka/local/consumer/" + consumer + "/status",
 		Checker: func() (string, error) {
 			return h.fetchAndCheckConsumerGroupForLags(consumer)
 		},

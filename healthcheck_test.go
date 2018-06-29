@@ -462,7 +462,7 @@ func TestGTG(t *testing.T) {
 		"consumers": []string{"consumer1", "consumer2"},
 	}
 	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v3/kafka/local/consumer/", consumersResponse)
 
 	consumerStatus := []map[string]interface{}{
 		map[string]interface{}{
@@ -496,7 +496,7 @@ func TestGTG(t *testing.T) {
 	}
 	for i, status := range consumerStatus {
 		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v3/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
 	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0, 0)
@@ -543,7 +543,7 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 		"consumers": []string{"consumer1", "consumer2"},
 	}
 	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v3/kafka/local/consumer/", consumersResponse)
 
 	consumerStatus := []map[string]interface{}{
 		map[string]interface{}{
@@ -577,7 +577,7 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 	}
 	for i, status := range consumerStatus {
 		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v3/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
 	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5, 1)
@@ -610,7 +610,7 @@ func TestGTGLaggingWithinLimit(t *testing.T) {
 		"consumers": []string{"consumer1", "consumer2"},
 	}
 	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+	httpmock.RegisterResponder("GET", burrowUrl+"/v3/kafka/local/consumer/", consumersResponse)
 
 	consumerStatus := []map[string]interface{}{
 		map[string]interface{}{
@@ -644,7 +644,7 @@ func TestGTGLaggingWithinLimit(t *testing.T) {
 	}
 	for i, status := range consumerStatus {
 		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v3/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
 	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10, 5)
