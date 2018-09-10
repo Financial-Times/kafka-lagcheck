@@ -66,6 +66,7 @@ func main() {
 		if strings.HasSuffix(burrowAddress, "/") {
 			burrowAddress = burrowAddress[:len(burrowAddress)-1]
 		}
+		burrowAddress += "/v2/kafka/local/consumer/"
 
 		healthService := newHealthService("kafka-lagcheck", "kafka-lagcheck",
 			"Verifies all the defined consumer groups if they have lags.", burrowAddress, *whitelistedTopics,
