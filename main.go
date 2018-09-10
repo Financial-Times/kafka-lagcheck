@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
 	status "github.com/Financial-Times/service-status-go/httphandlers"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -66,10 +67,12 @@ func main() {
 			burrowAddress = burrowAddress[:len(burrowAddress)-1]
 		}
 
-		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
+		healthService := newHealthService("kafka-lagcheck", "kafka-lagcheck",
+			"Verifies all the defined consumer groups if they have lags.", burrowAddress, *whitelistedTopics,
+			*whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
 		router := mux.NewRouter()
-		router.Path("/__health").Handler(handlers.MethodHandler{"GET": http.HandlerFunc(healthCheck.Health())})
-		router.Path(status.GTGPath).Handler(handlers.MethodHandler{"GET": http.HandlerFunc(status.NewGoodToGoHandler(healthCheck.GTG))})
+		router.HandleFunc(healthPath, http.HandlerFunc(fthealth.Handler(healthService.Health())))
+		router.Path(status.GTGPath).Handler(handlers.MethodHandler{"GET": http.HandlerFunc(status.NewGoodToGoHandler(healthService.GTG))})
 
 		infoLogger.Printf("Kafka Lagcheck listening on port %v ...", *port)
 		err := http.ListenAndServe(":"+*port, router)
