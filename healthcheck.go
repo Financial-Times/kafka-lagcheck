@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -26,15 +27,39 @@ type healthcheck struct {
 	checkPrefix       string
 	maxLagTolerance   int
 	errLagTolerance   int
+	client            *http.Client
 }
 
 func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *healthcheck {
+	tr := &http.Transport{
+		MaxIdleConnsPerHost: 128,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+	}
+	c := &http.Client{
+		Transport: tr,
+		Timeout:   30 * time.Second,
+	}
 	return &healthcheck{
 		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
 		whitelistedEnvs:   whitelistedEnvs,
 		maxLagTolerance:   maxLagTolerance,
 		errLagTolerance:   errLagTolerance,
+		client:            c,
+	}
+}
+
+func newHealthcheckWithCustomClient(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int, c *http.Client) *healthcheck {
+	return &healthcheck{
+		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
+		whitelistedTopics: whitelistedTopics,
+		whitelistedEnvs:   whitelistedEnvs,
+		maxLagTolerance:   maxLagTolerance,
+		errLagTolerance:   errLagTolerance,
+		client:            c,
 	}
 }
 
@@ -244,7 +269,7 @@ func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 }
 
 func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
-	resp, err := http.Get(h.checkPrefix)
+	resp, err := h.client.Get(h.checkPrefix)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return nil, err

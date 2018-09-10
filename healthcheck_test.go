@@ -499,7 +499,7 @@ func TestGTG(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0, 0)
+	h := newHealthcheckWithCustomClient(burrowUrl, []string{}, []string{}, 0, 0, http.DefaultClient)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
@@ -580,7 +580,7 @@ func TestGTGLaggingBeyondLimit(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5, 1)
+	h := newHealthcheckWithCustomClient(burrowUrl, []string{}, []string{}, 5, 1, http.DefaultClient)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
@@ -647,7 +647,7 @@ func TestGTGLaggingWithinLimit(t *testing.T) {
 		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10, 5)
+	h := newHealthcheckWithCustomClient(burrowUrl, []string{}, []string{}, 10, 5, http.DefaultClient)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
