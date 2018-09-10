@@ -93,7 +93,7 @@ func (service *HealthService) burrowChecker() (string, error) {
 	}
 	defer properClose(resp)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
+		errMsg := fmt.Sprintf("Burrow returned status %d for call %s", resp.StatusCode, service.config.burrowURL)
 		return errMsg, errors.New(errMsg)
 	}
 	return "Burrow is available", nil
