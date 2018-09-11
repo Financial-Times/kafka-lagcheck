@@ -134,11 +134,7 @@ func (service *HealthService) lagChecker() (string, error) {
 		return "", nil
 	}
 
-	formattedMessage, err := json.MarshalIndent(lags, "", " ")
-	if err != nil {
-		formattedMessage = []byte(fmt.Sprintf("%v", lags))
-	}
-	errMsg := fmt.Sprintf("Lagging consumer groups: %s", string(formattedMessage))
+	errMsg := fmt.Sprintf("Lagging consumer groups: %v", lags)
 	return errMsg, errors.New(errMsg)
 }
 
@@ -221,7 +217,7 @@ func (service *HealthService) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body 
 			return nil
 		}
 	}
-	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s", consumerGroup, lag, status)
+	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s.", consumerGroup, lag, status)
 }
 
 func (service *HealthService) fetchAndParseConsumerGroups() ([]string, error) {
