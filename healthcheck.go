@@ -124,7 +124,10 @@ func (service *HealthService) lagChecker() (string, error) {
 	}
 
 	for _, consumer := range consumerGroups {
-		lags[consumer] = service.fetchAndCheckConsumerGroupForLags(consumer)
+		err := service.fetchAndCheckConsumerGroupForLags(consumer)
+		if err != nil {
+			lags[consumer] = err
+		}
 	}
 
 	if len(lags) > 0 {
