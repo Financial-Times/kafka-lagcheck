@@ -102,10 +102,10 @@ func (service *HealthService) burrowChecker() (string, error) {
 func (service *HealthService) lagCheck() fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
-		Name:             "One of more consumer groups are lagging.",
+		Name:             "One or more consumer groups are lagging.",
 		PanicGuide:       "https://dewey.in.ft.com/view/system/kafka-lagcheck",
 		Severity:         1,
-		TechnicalSummary: "One of more consumer grous are lagging. Further info at: __burrow/v2/kafka/local/consumer/{consumerName}/status",
+		TechnicalSummary: "One or more consumer groups are lagging. Further info at: __burrow/v2/kafka/local/consumer/{consumerName}/status",
 		Checker:          service.lagChecker,
 	}
 }
@@ -130,11 +130,16 @@ func (service *HealthService) lagChecker() (string, error) {
 		}
 	}
 
-	if len(lags) > 0 {
-		errMsg := fmt.Sprintf("Lagging consumer groups: %v", lags)
-		return errMsg, errors.New(errMsg)
+	if len(lags) == 0 {
+		return "", nil
 	}
-	return "", nil
+
+	formattedMessage, err := json.MarshalIndent(lags, "", " ")
+	if err != nil {
+		formattedMessage = []byte(fmt.Sprintf("%v", lags))
+	}
+	errMsg := fmt.Sprintf("Lagging consumer groups: %s", string(formattedMessage))
+	return errMsg, errors.New(errMsg)
 }
 
 func (service *HealthService) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
