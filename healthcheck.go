@@ -11,231 +11,208 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/jsonq"
+
 	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
 	"github.com/Financial-Times/service-status-go/gtg"
-	"github.com/jmoiron/jsonq"
 )
 
-const (
-	systemCode = "kafka-lagcheck"
-)
+const healthPath = "/__health"
 
-type healthcheck struct {
+type HealthService struct {
+	config       *HealthConfig
+	healthChecks []fthealth.Check
+	gtgChecks    []gtg.StatusChecker
+}
+
+type HealthConfig struct {
+	appSystemCode     string
+	appName           string
+	appDescription    string
+	burrowURL         string
 	whitelistedTopics []string
 	whitelistedEnvs   []string
-	checkPrefix       string
 	maxLagTolerance   int
 	errLagTolerance   int
 }
 
-func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *healthcheck {
-	return &healthcheck{
-		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
-		whitelistedTopics: whitelistedTopics,
-		whitelistedEnvs:   whitelistedEnvs,
-		maxLagTolerance:   maxLagTolerance,
-		errLagTolerance:   errLagTolerance,
+func newHealthService(appSystemCode string, appName string, appDescription string, burrowURL string,
+	whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *HealthService {
+	hc := &HealthService{
+		config: &HealthConfig{
+			appSystemCode:     appSystemCode,
+			appName:           appName,
+			appDescription:    appDescription,
+			burrowURL:         burrowURL,
+			whitelistedTopics: whitelistedTopics,
+			whitelistedEnvs:   whitelistedEnvs,
+			maxLagTolerance:   maxLagTolerance,
+			errLagTolerance:   errLagTolerance,
+		},
 	}
+	hc.healthChecks = []fthealth.Check{hc.burrowCheck(), hc.lagCheck()}
+	burrowCheck := func() gtg.Status {
+		return gtgCheck(hc.burrowChecker)
+	}
+	lagCheck := func() gtg.Status {
+		return gtgCheck(hc.lagChecker)
+	}
+	var gtgChecks []gtg.StatusChecker
+	gtgChecks = append(hc.gtgChecks, burrowCheck, lagCheck)
+	hc.gtgChecks = gtgChecks
+	return hc
 }
 
-func (h *healthcheck) Health() func(w http.ResponseWriter, r *http.Request) {
-	consumerGroups, err := h.fetchAndParseConsumerGroups()
-	if err != nil {
-		warnLogger.Println(err.Error())
-		c := fthealth.TimedHealthCheck{
-			HealthCheck: fthealth.HealthCheck{
-				SystemCode:  systemCode,
-				Name:        "Kafka consumer groups",
-				Description: "Verifies all the defined consumer groups if they have lags.",
-				Checks:      []fthealth.Check{h.burrowUnavailableCheck(err)},
-			},
-			Timeout: 10 * time.Second,
-		}
-		return fthealth.Handler(c)
-	}
-
-	var consumerGroupChecks []fthealth.Check
-	for _, consumer := range consumerGroups {
-		consumerGroupChecks = append(consumerGroupChecks, h.consumerLags(consumer))
-	}
-	if len(consumerGroups) == 0 {
-		c := fthealth.TimedHealthCheck{
-			HealthCheck: fthealth.HealthCheck{
-				SystemCode:  systemCode,
-				Name:        "Kafka consumer groups",
-				Description: "Verifies all the defined consumer groups if they have lags.",
-				Checks:      []fthealth.Check{h.noConsumerGroupsCheck()},
-			},
-			Timeout: 10 * time.Second,
-		}
-		return fthealth.Handler(c)
-	}
-
-	c := fthealth.TimedHealthCheck{
+func (service *HealthService) Health() fthealth.HC {
+	return &fthealth.TimedHealthCheck{
 		HealthCheck: fthealth.HealthCheck{
-			SystemCode:  systemCode,
-			Name:        "Kafka consumer groups",
-			Description: "Verifies all the defined consumer groups if they have lags.",
-			Checks:      consumerGroupChecks,
+			SystemCode:  service.config.appSystemCode,
+			Name:        service.config.appName,
+			Description: service.config.appDescription,
+			Checks:      service.healthChecks,
 		},
 		Timeout: 10 * time.Second,
 	}
-	return fthealth.Handler(c)
 }
 
-func (h *healthcheck) GTG() gtg.Status {
-	consumerGroups, err := h.fetchAndParseConsumerGroups()
+func (service *HealthService) burrowCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "Cannot monitor publishing pipeline lag.",
+		Name:             "Burrow availability",
+		PanicGuide:       "https://dewey.in.ft.com/view/system/kafka-lagcheck",
+		Severity:         1,
+		TechnicalSummary: "Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly.",
+		Checker:          service.burrowChecker,
+	}
+}
+
+func (service *HealthService) burrowChecker() (string, error) {
+	resp, err := http.Get(service.config.burrowURL)
 	if err != nil {
-		warnLogger.Println(err.Error())
-		f := func() gtg.Status {
-			return gtgCheck(func() (string, error) {
-				_, err := h.fetchAndParseConsumerGroups()
-				if err != nil {
-					return "", err
-				}
-				return "", nil
-			})
-		}
-		return gtg.FailFastParallelCheck([]gtg.StatusChecker{f})()
+		return "Could not execute request to burrow", err
+	}
+	defer properClose(resp)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("Burrow returned status %d for call %s", resp.StatusCode, service.config.burrowURL)
+		return errMsg, errors.New(errMsg)
+	}
+	return "Burrow is available", nil
+}
+
+func (service *HealthService) lagCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "Will delay publishing on respective pipeline.",
+		Name:             "One or more consumer groups are lagging.",
+		PanicGuide:       "https://dewey.in.ft.com/view/system/kafka-lagcheck",
+		Severity:         1,
+		TechnicalSummary: "One or more consumer groups are lagging. Further info at: __burrow/v2/kafka/local/consumer/{consumerName}/status",
+		Checker:          service.lagChecker,
+	}
+}
+
+func (service *HealthService) lagChecker() (string, error) {
+	consumerGroups, err := service.fetchAndParseConsumerGroups()
+	if err != nil {
+		return "Could not execute request to burrow", err
 	}
 
-	gtgs := []gtg.StatusChecker{}
+	lags := make(map[string]error)
+
+	if len(consumerGroups) == 0 {
+		errMsg := "burrow didn't return any consumer groups"
+		return errMsg, errors.New(errMsg)
+	}
+
 	for _, consumer := range consumerGroups {
-		consumerCopy := consumer
-		gtgF := func() gtg.Status {
-			return gtgCheck(
-				func() (string, error) {
-					return h.fetchAndCheckConsumerGroupForLags(consumerCopy)
-				},
-			)
+		err := service.fetchAndCheckConsumerGroupForLags(consumer)
+		if err != nil {
+			lags[consumer] = err
 		}
-		gtgs = append(gtgs, gtgF)
 	}
 
-	return gtg.FailFastParallelCheck(gtgs)()
-}
-
-func gtgCheck(handler func() (string, error)) gtg.Status {
-	if _, err := handler(); err != nil {
-		return gtg.Status{GoodToGo: false, Message: err.Error()}
+	if len(lags) == 0 {
+		return "", nil
 	}
-	return gtg.Status{GoodToGo: true}
+
+	errMsg := fmt.Sprintf("Lagging consumer groups: %v", lags)
+	return errMsg, errors.New(errMsg)
 }
 
-func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
-	return fthealth.Check{
-		BusinessImpact:   "Will delay publishing on respective pipeline.",
-		Name:             "Consumer group " + consumer + " is lagging.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
-		Severity:         1,
-		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
-		Checker: func() (string, error) {
-			return h.fetchAndCheckConsumerGroupForLags(consumer)
-		},
-	}
-}
-
-func (h *healthcheck) burrowUnavailableCheck(err error) fthealth.Check {
-	return fthealth.Check{
-		BusinessImpact:   "Will delay publishing on respective pipeline.",
-		Name:             "Error retrieving consumer group list.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
-		Severity:         1,
-		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly. %s", err.Error()),
-		Checker: func() (string, error) {
-			return "", errors.New("Error retrieving consumer group list.")
-		},
-	}
-}
-
-func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
-	return fthealth.Check{
-		BusinessImpact:   "Will delay publishing on respective pipeline.",
-		Name:             "Error retrieving consumer group list.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
-		Severity:         1,
-		TechnicalSummary: "Can't see any consumers yet so no lags to report and could successfully connect to kafka. This usually should happen only on startup, please retry in a few moments, and if this case persists, take a more serious look at burrow and kafka.",
-		Checker: func() (string, error) {
-			return "", nil
-		},
-	}
-}
-
-func (h *healthcheck) fetchAndCheckConsumerGroupForLags(consumerGroup string) (string, error) {
-	resp, err := http.Get(h.checkPrefix + consumerGroup + "/status")
+func (service *HealthService) fetchAndCheckConsumerGroupForLags(consumerGroup string) error {
+	resp, err := http.Get(service.config.burrowURL + consumerGroup + "/status")
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
-		return "", err
+		return err
 	}
 	defer properClose(resp)
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Burrow returned status %d", resp.StatusCode)
-		return "", errors.New(errMsg)
+		return errors.New(errMsg)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	lagErr := h.checkConsumerGroupForLags(body, consumerGroup)
+	lagErr := service.checkConsumerGroupForLags(body, consumerGroup)
 	if lagErr != nil {
 		warnLogger.Printf("Lagging consumers: [%s]", lagErr.Error())
 	}
-	return "", lagErr
+	return lagErr
 }
 
-func (h *healthcheck) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
+func (service *HealthService) checkConsumerGroupForLags(body []byte, consumerGroup string) error {
 	fullStatus := map[string]interface{}{}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	err := dec.Decode(&fullStatus)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return errors.New("Could not decode response body to json.")
+		return errors.New("could not decode response body to json")
 	}
 
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall consumer status.")
+		return errors.New("couldn't unmarshal consumer status")
 	}
 
 	if statusError {
 		warnLogger.Printf("Consumer status response is an error: %v", string(body))
-		return errors.New("Consumer status response is an error.")
+		return errors.New("consumer status response is an error")
 	}
 
 	status, err := jq.String("status", "status")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall status>status: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall status > status")
+		return errors.New("couldn't unmarshal status > status")
 	}
 
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall totallag.")
+		return errors.New("couldn't unmarshal totallag")
 	}
 
-	if totalLag > h.maxLagTolerance {
-		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
+	if totalLag > service.config.maxLagTolerance {
+		return service.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
 	}
 
-	if status != "OK" && totalLag > h.errLagTolerance { // this prevents old / unused consumer groups from causing lags
-		return h.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
+	if status != "OK" && totalLag > service.config.errLagTolerance { // this prevents old / unused consumer groups from causing lags
+		return service.ignoreWhitelistedTopics(jq, body, status, totalLag, consumerGroup)
 	}
 
 	return nil
 }
 
-func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, status string, lag int, consumerGroup string) error {
+func (service *HealthService) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, status string, lag int, consumerGroup string) error {
 	topic1, err1 := jq.String("status", "maxlag", "topic")
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
 		warnLogger.Printf("Couldn't unmarshall topic: %v %v %v", string(body), err1.Error(), err2.Error())
-		return errors.New("Couldn't unmarshall topic.")
+		return errors.New("couldn't unmarshal topic")
 	}
 	topic := topic1
 	if topic == "" {
 		topic = topic2
 	}
-	for _, whitelistedTopic := range h.whitelistedTopics {
+	for _, whitelistedTopic := range service.config.whitelistedTopics {
 		if topic == whitelistedTopic {
 			return nil
 		}
@@ -243,8 +220,8 @@ func (h *healthcheck) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body []byte, 
 	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s", consumerGroup, lag, status)
 }
 
-func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
-	resp, err := http.Get(h.checkPrefix)
+func (service *HealthService) fetchAndParseConsumerGroups() ([]string, error) {
+	resp, err := http.Get(service.config.burrowURL)
 	if err != nil {
 		warnLogger.Printf("Could not execute request to burrow: %v", err.Error())
 		return nil, err
@@ -255,44 +232,36 @@ func (h *healthcheck) fetchAndParseConsumerGroups() ([]string, error) {
 		return nil, errors.New(errMsg)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	return h.parseConsumerGroups(body)
+	return service.parseConsumerGroups(body)
 }
 
-func properClose(resp *http.Response) {
-	io.Copy(ioutil.Discard, resp.Body)
-	err := resp.Body.Close()
-	if err != nil {
-		warnLogger.Printf("Could not close response body: %v", err.Error())
-	}
-}
-
-func (h *healthcheck) parseConsumerGroups(body []byte) ([]string, error) {
+func (service *HealthService) parseConsumerGroups(body []byte) ([]string, error) {
 	fullConsumers := make(map[string]interface{})
 	err := json.NewDecoder(bytes.NewReader(body)).Decode(&fullConsumers)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return nil, fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+		return nil, fmt.Errorf("could not decode response body to json: %v %v", string(body), err)
 	}
 	jq := jsonq.NewQuery(fullConsumers)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't unmarshall consumer list response: %v %v", string(body), err)
+		return nil, fmt.Errorf("couldn't unmarshal consumer list response: %v %v", string(body), err)
 	}
 	if statusError {
-		return nil, fmt.Errorf("Consumer list response is an error: %v", string(body))
+		return nil, fmt.Errorf("consumer list response is an error: %v", string(body))
 	}
 	consumers, err := jq.ArrayOfStrings("consumers")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
-		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
+		return nil, fmt.Errorf("couldn't unmarshal consumer list: %s %s", string(body), err)
 	}
-	return h.filterOutNonRelatedKafkaBridges(consumers), nil
+	return service.filterOutNonRelatedKafkaBridges(consumers), nil
 }
 
-func (h *healthcheck) filterOutNonRelatedKafkaBridges(consumers []string) []string {
-	filteredConsumers := []string{}
+func (service *HealthService) filterOutNonRelatedKafkaBridges(consumers []string) []string {
+	var filteredConsumers []string
 	for _, consumer := range consumers {
-		if strings.Contains(consumer, "kafka-bridge") && !h.isBridgeFromWhitelistedEnvs(consumer) {
+		if strings.Contains(consumer, "kafka-bridge") && !service.isBridgeFromWhitelistedEnvs(consumer) {
 			continue
 		}
 
@@ -302,17 +271,36 @@ func (h *healthcheck) filterOutNonRelatedKafkaBridges(consumers []string) []stri
 	return filteredConsumers
 }
 
-func (h *healthcheck) isBridgeFromWhitelistedEnvs(bridgeName string) bool {
+func (service *HealthService) isBridgeFromWhitelistedEnvs(bridgeName string) bool {
 	//Do not filter out any Kafka bridge by default
-	if len(h.whitelistedEnvs) == 0 {
+	if len(service.config.whitelistedEnvs) == 0 {
 		return true
 	}
 
-	for _, whitelistedEnv := range h.whitelistedEnvs {
+	for _, whitelistedEnv := range service.config.whitelistedEnvs {
 		if strings.HasPrefix(bridgeName, whitelistedEnv) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func gtgCheck(handler func() (string, error)) gtg.Status {
+	if _, err := handler(); err != nil {
+		return gtg.Status{GoodToGo: false, Message: err.Error()}
+	}
+	return gtg.Status{GoodToGo: true}
+}
+
+func (service *HealthService) GTG() gtg.Status {
+	return gtg.FailFastParallelCheck(service.gtgChecks)()
+}
+
+func properClose(resp *http.Response) {
+	io.Copy(ioutil.Discard, resp.Body)
+	err := resp.Body.Close()
+	if err != nil {
+		warnLogger.Printf("Could not close response body: %v", err.Error())
+	}
 }

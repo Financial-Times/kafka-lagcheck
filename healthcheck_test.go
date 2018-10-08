@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -25,13 +26,13 @@ func TestConsumerStatus(t *testing.T) {
 	}{
 		{
 			body: []byte(`{}`),
-			err:  errors.New("Couldn't unmarshall consumer status."),
+			err:  errors.New("couldn't unmarshal consumer status"),
 		},
 		{
 			body: []byte(`{
 				"error": true
 			}`),
-			err: errors.New("Consumer status response is an error."),
+			err: errors.New("consumer status response is an error"),
 		},
 		{
 			// Lag is not 0 but below threshold.
@@ -264,7 +265,7 @@ func TestConsumerStatus(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, []string{}, 30, 5)
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", "burrow:8080", []string{"Concept"}, []string{}, 30, 5)
 	for _, tc := range testCases {
 		actualErr := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		actualMsg := "<nil>"
@@ -282,6 +283,7 @@ func TestConsumerStatus(t *testing.T) {
 }
 
 func TestUnmarshalBurrowResponseFails(t *testing.T) {
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
 	testCases := []struct {
 		body  []byte
 		err   string
@@ -289,32 +291,31 @@ func TestUnmarshalBurrowResponseFails(t *testing.T) {
 	}{
 		{
 			body:  []byte(``),
-			err:   "Could not decode response body to json.",
+			err:   "could not decode response body to json",
 			fails: true,
 		},
 		{
 			body:  []byte(`{"error": null}`),
-			err:   "Couldn't unmarshall consumer status.",
+			err:   "couldn't unmarshal consumer status",
 			fails: true,
 		},
 		{
 			body:  []byte(`{"error":false, "status": {}}`),
-			err:   "Couldn't unmarshall status > status",
+			err:   "couldn't unmarshal status > status",
 			fails: true,
 		},
 		{
 			body:  []byte(`{"error":false, "status": {"status":1,"totallag": "hi"}}`),
-			err:   "Couldn't unmarshall status > status",
+			err:   "couldn't unmarshal status > status",
 			fails: true,
 		},
 		{
 			body:  []byte(`{"error":false, "status": {"status":"any string","totallag": "hi"}}`),
-			err:   "Couldn't unmarshall totallag.",
+			err:   "couldn't unmarshal totallag",
 			fails: true,
 		},
 	}
-
-	h := newHealthcheck("", []string{"Concept"}, []string{}, 30, 10)
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", "burrow:8080", []string{"Concept"}, []string{}, 30, 5)
 	for _, tc := range testCases {
 		err := h.checkConsumerGroupForLags(tc.body, "xp-notifications-push-2")
 		if tc.fails {
@@ -333,14 +334,14 @@ func TestConsumerList(t *testing.T) {
 	}{
 		{
 			body:      []byte("{}"),
-			err:       errors.New("Couldn't unmarshall consumer list response"),
+			err:       errors.New("couldn't unmarshal consumer list response"),
 			consumers: nil,
 		},
 		{
 			body: []byte(`{
 				"error": true
 			}`),
-			err:       errors.New("Consumer list response is an error"),
+			err:       errors.New("consumer list response is an error"),
 			consumers: nil,
 		},
 		{
@@ -348,7 +349,7 @@ func TestConsumerList(t *testing.T) {
 				"error": false,
 				"message": "consumer group status returned"
 			}`),
-			err:       errors.New("Couldn't unmarshall consumer list"),
+			err:       errors.New("couldn't unmarshal consumer list"),
 			consumers: nil,
 		},
 		{
@@ -394,7 +395,7 @@ func TestConsumerList(t *testing.T) {
 		},
 	}
 	initLogs(ioutil.Discard, ioutil.Discard, ioutil.Discard)
-	h := newHealthcheck("", []string{"Concept"}, []string{"lower-env1"}, 30, 10)
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", "burrow:8080", []string{"Concept"}, []string{"lower-env1"}, 30, 5)
 	for _, tc := range testCases {
 		consumers, actualErr := h.parseConsumerGroups(tc.body)
 		actualMsg := "<nil>"
@@ -440,7 +441,7 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		h := newHealthcheck("", []string{""}, tc.whitelistedEnvs, 30, 10)
+		h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", "burrow:8080", []string{""}, tc.whitelistedEnvs, 30, 5)
 		filteredConsumers := h.filterOutNonRelatedKafkaBridges(tc.consumers)
 		for i, c := range filteredConsumers {
 			if c != tc.expected[i] {
@@ -451,10 +452,11 @@ func TestFilterOutNonRelatedKafkaBridges(t *testing.T) {
 }
 
 func TestGTG(t *testing.T) {
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	burrowUrl := "http://burrow.example.com"
+	burrowUrl := "http://burrow.example.com/v2/kafka/local/consumer/"
 
 	consumers := map[string]interface{}{
 		"error":     false,
@@ -462,31 +464,31 @@ func TestGTG(t *testing.T) {
 		"consumers": []string{"consumer1", "consumer2"},
 	}
 	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
+	httpmock.RegisterResponder("GET", burrowUrl, consumersResponse)
 
 	consumerStatus := []map[string]interface{}{
-		map[string]interface{}{
+		{
 			"error":   false,
 			"message": "consumer group status returned",
 			"status": map[string]interface{}{
 				"status":   "OK",
 				"complete": true,
 				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
+					{"topic": "TestTopic"},
 				},
 				"partition_count": 1,
 				"maxlag":          nil,
 				"totallag":        0,
 			},
 		},
-		map[string]interface{}{
+		{
 			"error":   false,
 			"message": "consumer group status returned",
 			"status": map[string]interface{}{
 				"status":   "OK",
 				"complete": true,
 				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
+					{"topic": "TestTopic"},
 				},
 				"partition_count": 1,
 				"maxlag":          nil,
@@ -494,12 +496,138 @@ func TestGTG(t *testing.T) {
 			},
 		},
 	}
-	for i, status := range consumerStatus {
-		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
+	for i, statusCode := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, statusCode)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%sconsumer%d/status", burrowUrl, i+1), statusResponse)
+	}
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", burrowUrl, []string{}, []string{}, 0, 0)
+	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
+	w := httptest.NewRecorder()
+	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
+
+	actual := *w.Result()
+	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
+}
+
+func TestGTGLaggingBeyondLimit(t *testing.T) {
+	buf := &syncWriter{}
+	initLogs(buf, buf, buf)
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	burrowUrl := "http://burrow.example.com/v2/kafka/local/consumer/"
+
+	consumers := map[string]interface{}{
+		"error":     false,
+		"message":   "consumer list returned",
+		"consumers": []string{"consumer1", "consumer2"},
+	}
+	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
+	httpmock.RegisterResponder("GET", burrowUrl, consumersResponse)
+
+	consumerStatus := []map[string]interface{}{
+		{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        10,
+			},
+		},
+		{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        6,
+			},
+		},
+	}
+	for i, statusCode := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, statusCode)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%sconsumer%d/status", burrowUrl, i+1), statusResponse)
 	}
 
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 0, 0)
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", burrowUrl, []string{}, []string{}, 5, 1)
+	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
+	w := httptest.NewRecorder()
+	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
+	actual := *w.Result()
+	assert.Equal(t, actual.StatusCode, http.StatusServiceUnavailable, "GTG HTTP status")
+
+	// give a little time for logging goroutine to catch up
+	time.Sleep(100 * time.Millisecond)
+
+	logs := string(buf.Bytes())
+	for _, statusCode := range consumerStatus {
+		expected := fmt.Sprintf(".*Lagging consumers:.+consumer[\\d] consumer group is lagging behind with %d messages.*", statusCode["status"].(map[string]interface{})["totallag"])
+		assert.Regexp(t, expected, logs, "lagging consumer log")
+	}
+}
+
+func TestGTGLaggingWithinLimit(t *testing.T) {
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	burrowUrl := "http://burrow.example.com/v2/kafka/local/consumer/"
+
+	consumers := map[string]interface{}{
+		"error":     false,
+		"message":   "consumer list returned",
+		"consumers": []string{"consumer1", "consumer2"},
+	}
+	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
+	httpmock.RegisterResponder("GET", burrowUrl, consumersResponse)
+
+	consumerStatus := []map[string]interface{}{
+		{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        10,
+			},
+		},
+		{
+			"error":   false,
+			"message": "consumer group status returned",
+			"status": map[string]interface{}{
+				"status":   "OK",
+				"complete": true,
+				"partitions": []map[string]interface{}{
+					{"topic": "TestTopic"},
+				},
+				"partition_count": 1,
+				"maxlag":          nil,
+				"totallag":        0,
+			},
+		},
+	}
+	for i, statusCode := range consumerStatus {
+		statusResponse, _ := httpmock.NewJsonResponder(200, statusCode)
+		httpmock.RegisterResponder("GET", fmt.Sprintf("%sconsumer%d/status", burrowUrl, i+1), statusResponse)
+	}
+	h := newHealthService("kafka-lagcheck", "kafka-lagcheck", "description", burrowUrl, []string{}, []string{}, 10, 5)
 
 	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
 	w := httptest.NewRecorder()
@@ -526,133 +654,4 @@ func (w *syncWriter) Bytes() []byte {
 	defer w.Unlock()
 
 	return w.buf.Bytes()
-}
-
-func TestGTGLaggingBeyondLimit(t *testing.T) {
-	buf := &syncWriter{}
-	initLogs(buf, buf, buf)
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	burrowUrl := "http://burrow.example.com"
-
-	consumers := map[string]interface{}{
-		"error":     false,
-		"message":   "consumer list returned",
-		"consumers": []string{"consumer1", "consumer2"},
-	}
-	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
-
-	consumerStatus := []map[string]interface{}{
-		map[string]interface{}{
-			"error":   false,
-			"message": "consumer group status returned",
-			"status": map[string]interface{}{
-				"status":   "OK",
-				"complete": true,
-				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
-				},
-				"partition_count": 1,
-				"maxlag":          nil,
-				"totallag":        10,
-			},
-		},
-		map[string]interface{}{
-			"error":   false,
-			"message": "consumer group status returned",
-			"status": map[string]interface{}{
-				"status":   "OK",
-				"complete": true,
-				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
-				},
-				"partition_count": 1,
-				"maxlag":          nil,
-				"totallag":        6,
-			},
-		},
-	}
-	for i, status := range consumerStatus {
-		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
-	}
-
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 5, 1)
-
-	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
-	w := httptest.NewRecorder()
-	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
-	actual := *w.Result()
-	assert.Equal(t, actual.StatusCode, http.StatusServiceUnavailable, "GTG HTTP status")
-
-	// give a little time for logging goroutine to catch up
-	time.Sleep(100 * time.Millisecond)
-
-	logs := string(buf.Bytes())
-	for _, status := range consumerStatus {
-		expected := fmt.Sprintf(".*Lagging consumers:.+consumer[\\d] consumer group is lagging behind with %d messages.*", status["status"].(map[string]interface{})["totallag"])
-		assert.Regexp(t, expected, logs, "lagging consumer log")
-	}
-}
-
-func TestGTGLaggingWithinLimit(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	burrowUrl := "http://burrow.example.com"
-
-	consumers := map[string]interface{}{
-		"error":     false,
-		"message":   "consumer list returned",
-		"consumers": []string{"consumer1", "consumer2"},
-	}
-	consumersResponse, _ := httpmock.NewJsonResponder(200, consumers)
-	httpmock.RegisterResponder("GET", burrowUrl+"/v2/kafka/local/consumer/", consumersResponse)
-
-	consumerStatus := []map[string]interface{}{
-		map[string]interface{}{
-			"error":   false,
-			"message": "consumer group status returned",
-			"status": map[string]interface{}{
-				"status":   "OK",
-				"complete": true,
-				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
-				},
-				"partition_count": 1,
-				"maxlag":          nil,
-				"totallag":        10,
-			},
-		},
-		map[string]interface{}{
-			"error":   false,
-			"message": "consumer group status returned",
-			"status": map[string]interface{}{
-				"status":   "OK",
-				"complete": true,
-				"partitions": []map[string]interface{}{
-					map[string]interface{}{"topic": "TestTopic"},
-				},
-				"partition_count": 1,
-				"maxlag":          nil,
-				"totallag":        0,
-			},
-		},
-	}
-	for i, status := range consumerStatus {
-		statusResponse, _ := httpmock.NewJsonResponder(200, status)
-		httpmock.RegisterResponder("GET", fmt.Sprintf("%s/v2/kafka/local/consumer/consumer%d/status", burrowUrl, i+1), statusResponse)
-	}
-
-	h := newHealthcheck(burrowUrl, []string{}, []string{}, 10, 5)
-
-	req, _ := http.NewRequest("GET", "http://localhost/__gtg", nil)
-	w := httptest.NewRecorder()
-	http.HandlerFunc(status.NewGoodToGoHandler(h.GTG))(w, req)
-
-	actual := *w.Result()
-	assert.Equal(t, actual.StatusCode, http.StatusOK, "GTG HTTP status")
 }
