@@ -119,7 +119,7 @@ func (service *HealthService) lagChecker() (string, error) {
 	lags := make(map[string]error)
 
 	if len(consumerGroups) == 0 {
-		errMsg := "Burrow didn't return any consumer groups"
+		errMsg := "burrow didn't return any consumer groups"
 		return errMsg, errors.New(errMsg)
 	}
 
@@ -163,31 +163,31 @@ func (service *HealthService) checkConsumerGroupForLags(body []byte, consumerGro
 	err := dec.Decode(&fullStatus)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return errors.New("Could not decode response body to json.")
+		return errors.New("could not decode response body to json")
 	}
 
 	jq := jsonq.NewQuery(fullStatus)
 	statusError, err := jq.Bool("error")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer status: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall consumer status.")
+		return errors.New("couldn't unmarshal consumer status")
 	}
 
 	if statusError {
 		warnLogger.Printf("Consumer status response is an error: %v", string(body))
-		return errors.New("Consumer status response is an error.")
+		return errors.New("consumer status response is an error")
 	}
 
 	status, err := jq.String("status", "status")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall status>status: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall status > status")
+		return errors.New("couldn't unmarshal status > status")
 	}
 
 	totalLag, err := jq.Int("status", "totallag")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall totallag: %v %v", string(body), err.Error())
-		return errors.New("Couldn't unmarshall totallag.")
+		return errors.New("couldn't unmarshal totallag")
 	}
 
 	if totalLag > service.config.maxLagTolerance {
@@ -206,7 +206,7 @@ func (service *HealthService) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body 
 	topic2, err2 := jq.String("status", "partitions", "0", "topic")
 	if err1 != nil && err2 != nil {
 		warnLogger.Printf("Couldn't unmarshall topic: %v %v %v", string(body), err1.Error(), err2.Error())
-		return errors.New("Couldn't unmarshall topic.")
+		return errors.New("couldn't unmarshal topic")
 	}
 	topic := topic1
 	if topic == "" {
@@ -217,7 +217,7 @@ func (service *HealthService) ignoreWhitelistedTopics(jq *jsonq.JsonQuery, body 
 			return nil
 		}
 	}
-	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s.", consumerGroup, lag, status)
+	return fmt.Errorf("%s consumer group is lagging behind with %d messages. Status of the consumer group is %s", consumerGroup, lag, status)
 }
 
 func (service *HealthService) fetchAndParseConsumerGroups() ([]string, error) {
@@ -240,26 +240,26 @@ func (service *HealthService) parseConsumerGroups(body []byte) ([]string, error)
 	err := json.NewDecoder(bytes.NewReader(body)).Decode(&fullConsumers)
 	if err != nil {
 		warnLogger.Printf("Could not decode response body to json: %v %v", string(body), err.Error())
-		return nil, fmt.Errorf("Could not decode response body to json: %v %v", string(body), err)
+		return nil, fmt.Errorf("could not decode response body to json: %v %v", string(body), err)
 	}
 	jq := jsonq.NewQuery(fullConsumers)
 	statusError, err := jq.Bool("error")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't unmarshall consumer list response: %v %v", string(body), err)
+		return nil, fmt.Errorf("couldn't unmarshal consumer list response: %v %v", string(body), err)
 	}
 	if statusError {
-		return nil, fmt.Errorf("Consumer list response is an error: %v", string(body))
+		return nil, fmt.Errorf("consumer list response is an error: %v", string(body))
 	}
 	consumers, err := jq.ArrayOfStrings("consumers")
 	if err != nil {
 		warnLogger.Printf("Couldn't unmarshall consumer list: %s %s", string(body), err.Error())
-		return nil, fmt.Errorf("Couldn't unmarshall consumer list: %s %s", string(body), err)
+		return nil, fmt.Errorf("couldn't unmarshal consumer list: %s %s", string(body), err)
 	}
 	return service.filterOutNonRelatedKafkaBridges(consumers), nil
 }
 
 func (service *HealthService) filterOutNonRelatedKafkaBridges(consumers []string) []string {
-	filteredConsumers := []string{}
+	var filteredConsumers []string
 	for _, consumer := range consumers {
 		if strings.Contains(consumer, "kafka-bridge") && !service.isBridgeFromWhitelistedEnvs(consumer) {
 			continue
