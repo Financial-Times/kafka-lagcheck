@@ -1,4 +1,4 @@
-FROM golang:1.8.3-alpine
+FROM golang:1.12.5-alpine
 
 ENV PROJECT=kafka-lagcheck
 COPY . /${PROJECT}-sources/

@@ -3,7 +3,7 @@ jobs:
   build:
     working_directory: /go/src/github.com/Financial-Times/kafka-lagcheck
     docker:
-      - image: golang:1.8.3
+      - image: circleci/golang:1.12.5
         environment:
           GOPATH: /go
           CIRCLE_TEST_REPORTS: /tmp/test-results
