@@ -1,31 +1,28 @@
-FROM golang:1.8.3-alpine
+FROM golang:1
 
 ENV PROJECT=kafka-lagcheck
-COPY . /${PROJECT}-sources/
+ENV ORG_PATH="github.com/Financial-Times"
+ENV SRC_FOLDER="${GOPATH}/src/${ORG_PATH}/${PROJECT}"
 
-RUN apk add --no-cache --virtual .build-dependencies git \
-  && ORG_PATH="github.com/Financial-Times" \
-  && REPO_PATH="${ORG_PATH}/${PROJECT}" \
-  && mkdir -p $GOPATH/src/${ORG_PATH} \
-# Linking the project sources in the GOPATH folder
-  && ln -s /${PROJECT}-sources $GOPATH/src/${REPO_PATH} \
-  && cd $GOPATH/src/${REPO_PATH} \
-  && BUILDINFO_PACKAGE="github.com/Financial-Times/service-status-go/buildinfo." \
+COPY . ${SRC_FOLDER}
+WORKDIR ${SRC_FOLDER}
+
+RUN  BUILDINFO_PACKAGE="github.com/Financial-Times/service-status-go/buildinfo." \
   && VERSION="version=$(git describe --tag --always 2> /dev/null)" \
   && DATETIME="dateTime=$(date -u +%Y%m%d%H%M%S)" \
   && REPOSITORY="repository=$(git config --get remote.origin.url)" \
   && REVISION="revision=$(git rev-parse HEAD)" \
   && BUILDER="builder=$(go version)" \
   && LDFLAGS="-X '"${BUILDINFO_PACKAGE}$VERSION"' -X '"${BUILDINFO_PACKAGE}$DATETIME"' -X '"${BUILDINFO_PACKAGE}$REPOSITORY"' -X '"${BUILDINFO_PACKAGE}$REVISION"' -X '"${BUILDINFO_PACKAGE}$BUILDER"'" \
-  && echo "Fetching dependencies..." \
-  && go get -u github.com/kardianos/govendor \
-  && $GOPATH/bin/govendor sync \
-  && echo "Building app..." \
-  && echo "Build flags: $LDFLAGS" \
   && CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="${LDFLAGS}" -o /${PROJECT} ${REPO_PATH} \
-  && apk del .build-dependencies \
-  && rm -rf $GOPATH/src $GOPATH/pkg $GOPATH/.cache $GOPATH/bin /${PROJECT}-sources
+  && echo "Build flags: $LDFLAGS"
 
+# Multi-stage build - copy only the certs and the binary into the image
+FROM scratch
 WORKDIR /
-# Using the expanded command, so that the shell will expand the $PROJECT env var. See https://docs.docker.com/engine/reference/builder/#cmd
+COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=0 /artifacts/* /
+
+COPY config /config
+
 CMD ["/kafka-lagcheck"]
