@@ -14,7 +14,7 @@ RUN  BUILDINFO_PACKAGE="github.com/Financial-Times/service-status-go/buildinfo."
   && REVISION="revision=$(git rev-parse HEAD)" \
   && BUILDER="builder=$(go version)" \
   && LDFLAGS="-X '"${BUILDINFO_PACKAGE}$VERSION"' -X '"${BUILDINFO_PACKAGE}$DATETIME"' -X '"${BUILDINFO_PACKAGE}$REPOSITORY"' -X '"${BUILDINFO_PACKAGE}$REVISION"' -X '"${BUILDINFO_PACKAGE}$BUILDER"'" \
-  && CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="${LDFLAGS}" -o /${PROJECT} ${REPO_PATH} \
+  && CGO_ENABLED=0 go build -mod=readonly -a -o /artifacts/${PROJECT} -ldflags="${LDFLAGS}" \
   && echo "Build flags: $LDFLAGS"
 
 # Multi-stage build - copy only the certs and the binary into the image
