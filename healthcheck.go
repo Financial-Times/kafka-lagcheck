@@ -126,7 +126,7 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Consumer group " + consumer + " is lagging.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
+		PanicGuide:       "https://runbooks.in.ft.com/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
 		Checker: func() (string, error) {
@@ -139,7 +139,7 @@ func (h *healthcheck) burrowUnavailableCheck(err error) fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Error retrieving consumer group list.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
+		PanicGuide:       "https://runbooks.in.ft.com/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: fmt.Sprintf("Error retrieving consumer group list. Underlying kafka analysis tool burrow@*.service is unavailable. Please restart it or have a look if kafka itself is running properly. %s", err.Error()),
 		Checker: func() (string, error) {
@@ -152,7 +152,7 @@ func (h *healthcheck) noConsumerGroupsCheck() fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Will delay publishing on respective pipeline.",
 		Name:             "Error retrieving consumer group list.",
-		PanicGuide:       "https://sites.google.com/a/ft.com/ft-technology-service-transition/home/run-book-library/kafka-lagcheck",
+		PanicGuide:       "https://runbooks.in.ft.com/kafka-lagcheck",
 		Severity:         1,
 		TechnicalSummary: "Can't see any consumers yet so no lags to report and could successfully connect to kafka. This usually should happen only on startup, please retry in a few moments, and if this case persists, take a more serious look at burrow and kafka.",
 		Checker: func() (string, error) {

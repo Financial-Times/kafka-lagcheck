@@ -11,9 +11,7 @@ The go app is only serving as a forwarder, it makes requests to Burrow, and form
 1. You need to set up a [burrow](https://github.com/Financial-Times/burrow) running locally.
 2. `go get github.com/Financial-Times/kafka-lagcheck`
 3. `cd $GOPATH/src/github.com/Financial-Times/kafka-lagcheck`
-4. `go get -u github.com/kardianos/govendor `
-5. `$GOPATH/bin/govendor sync `
-6. `go install`
+4. `go build -mod=readonly . `
 
 ## Run locally
  To run the app, first install it, then run the following command:
