@@ -23,6 +23,4 @@ WORKDIR /
 COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=0 /artifacts/* /
 
-COPY config /config
-
 CMD ["/kafka-lagcheck"]
