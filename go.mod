@@ -1,4 +1,4 @@
-module github.com/Financial-Times/kafka-lagcheck
+module github.com/Financial-Times/kafka-lagcheck/v4
 
 go 1.13
 
