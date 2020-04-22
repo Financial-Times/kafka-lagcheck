@@ -18,3 +18,4 @@ env:
   BURROW_URL: ""
   MAX_LAG_TOLERANCE: ""
   ERR_LAG_TOLERANCE: ""
+eksCluster: false
