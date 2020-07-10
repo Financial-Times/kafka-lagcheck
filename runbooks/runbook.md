@@ -122,6 +122,6 @@ https://github.com/Financial-Times/upp-docs/tree/master/guides/ops/first-line-tr
 ## Second Line Troubleshooting
 
 - If the service becomes unhealthy and lag appears on one consumer group that might not be a problem. This may be the result of a lot of publishes in a particular moment and messages should be gradually consumed. Please wait approximately 10 minutes to see if the service goes healthy again.
-- If the service is still unhealthy after 10 minutes, check Burrow for the exact lag value and verify that this value is non-zero or decreasing. Example burrow URL: <https://upp-prod-delivery-eu.upp.ft.com/__burrow/v2/kafka/local/consumer/<consumer-group>/status>.
+- If the service is still unhealthy after 10 minutes, check Burrow for the exact lag value and verify that this value is non-zero or decreasing. Example Burrow consumer group status URL: <https://upp-prod-delivery-eu.upp.ft.com/__burrow/v2/kafka/local/consumer/{consumer-group}/status>
 - If Burrow indicates zero lag and Kafka lagcheck is unhealthy on a specific consumer group, then the Kafka lagcheck is stuck and you should restart it.
-- If Burrow indicates that the lag doesn't decrease, check that the consumers using that consumer group are healthy (you may need to restart them). As a last resort you may need to restart Kafka, Zookeeper and Kafka REST proxy according to the guide. Failover before and republish after the restart..
+- If Burrow indicates that the lag doesn't decrease, check that the consumers using that consumer group are healthy (you may need to restart them). As a last resort you may need to restart Kafka, Zookeeper and Kafka REST proxy according to the guide. Failover before and republish after the restart.
