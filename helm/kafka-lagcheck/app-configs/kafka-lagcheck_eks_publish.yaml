@@ -1,6 +1,5 @@
 # Values used for the deployed application.
 replicaCount: 1
-eksCluster: true
 service:
   name: kafka-lagcheck
 env:
