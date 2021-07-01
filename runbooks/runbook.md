@@ -1,3 +1,7 @@
+<!--
+    Written in the format prescribed by https://github.com/Financial-Times/runbook.md.
+    Any future edits should abide by this format.
+-->
 # UPP - Kafka Lagcheck
 
 The Kafka lagcheck service is responsible for tracking lags in Kafka consumer group message consumption.
@@ -8,7 +12,7 @@ kafka-lagcheck
 
 ## Primary URL
 
-<https://upp-prod-delivery-glb.upp.ft.com/__kafka-lagcheck/>
+https://upp-prod-delivery-glb.upp.ft.com/__kafka-lagcheck/
 
 ## Service Tier
 
@@ -17,22 +21,6 @@ Platinum
 ## Lifecycle Stage
 
 Production
-
-## Delivered By
-
-content
-
-## Supported By
-
-content
-
-## Known About By
-
-- mihail.mihaylov
-- hristo.georgiev
-- elitsa.pavlova
-- kalin.arsov
-- boyko.boykov
 
 ## Host Platform
 
@@ -51,9 +39,19 @@ No
 
 No
 
-## Dependencies
+<!-- Placeholder - remove HTML comment markers to activate
+## Can Download Personal Data
+Choose Yes or No
 
-- burrow
+...or delete this placeholder if not applicable to this system
+-->
+
+<!-- Placeholder - remove HTML comment markers to activate
+## Can Contact Individuals
+Choose Yes or No
+
+...or delete this placeholder if not applicable to this system
+-->
 
 ## Failover Architecture Type
 
@@ -97,6 +95,14 @@ Manual
 
 It is safe to release the service without failover.
 
+<!-- Placeholder - remove HTML comment markers to activate
+## Heroku Pipeline Name
+Enter descriptive text satisfying the following:
+This is the name of the Heroku pipeline for this system. If you don't have a pipeline, this is the name of the app in Heroku. A pipeline is a group of Heroku apps that share the same codebase where each app in a pipeline represents the different stages in a continuous delivery workflow, i.e. staging, production.
+
+...or delete this placeholder if not applicable to this system
+-->
+
 ## Key Management Process Type
 
 Manual
@@ -108,20 +114,22 @@ To access the service clients need to provide basic auth credentials. To rotate 
 ## Monitoring
 
 Service in UPP K8S Publishing clusters:
-- Publishing EU service health: https://upp-prod-publish-eu.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck
-- Publishing US service health: https://upp-prod-publish-us.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck
+
+*   Publishing EU service health: <https://upp-prod-publish-eu.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck>
+*   Publishing US service health: <https://upp-prod-publish-us.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck>
 
 Service in UPP K8S Delivery clusters:
-- Delivery EU service health: https://upp-prod-delivery-eu.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck
-- Delivery US service health: https://upp-prod-delivery-us.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck
+
+*   Delivery EU service health: <https://upp-prod-delivery-eu.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck>
+*   Delivery US service health: <https://upp-prod-delivery-us.upp.ft.com/__health/__pods-health?service-name=kafka-lagcheck>
 
 ## First Line Troubleshooting
 
-https://github.com/Financial-Times/upp-docs/tree/master/guides/ops/first-line-troubleshooting
+<https://github.com/Financial-Times/upp-docs/tree/master/guides/ops/first-line-troubleshooting>
 
 ## Second Line Troubleshooting
 
-- If the service becomes unhealthy and lag appears on one consumer group that might not be a problem. This may be the result of a lot of publishes in a particular moment and messages should be gradually consumed. Please wait approximately 10 minutes to see if the service goes healthy again.
-- If the service is still unhealthy after 10 minutes, check Burrow for the exact lag value and verify that this value is non-zero or decreasing. Example Burrow consumer group status URL: <https://upp-prod-delivery-eu.upp.ft.com/__burrow/v2/kafka/local/consumer/{consumer-group}/status>
-- If Burrow indicates zero lag and Kafka lagcheck is unhealthy on a specific consumer group, then the Kafka lagcheck is stuck and you should restart it.
-- If Burrow indicates that the lag doesn't decrease, check that the consumers using that consumer group are healthy (you may need to restart them). As a last resort you may need to restart Kafka, Zookeeper and Kafka REST proxy according to the guide. Failover before and republish after the restart.
+*   If the service becomes unhealthy and lag appears on one consumer group that might not be a problem. This may be the result of a lot of publishes in a particular moment and messages should be gradually consumed. Please wait approximately 10 minutes to see if the service goes healthy again.
+*   If the service is still unhealthy after 10 minutes, check Burrow for the exact lag value and verify that this value is non-zero or decreasing. Example Burrow consumer group status URL: <https://upp-prod-delivery-eu.upp.ft.com/__burrow/v2/kafka/local/consumer/{consumer-group}/status>
+*   If Burrow indicates zero lag and Kafka lagcheck is unhealthy on a specific consumer group, then the Kafka lagcheck is stuck and you should restart it.
+*   If Burrow indicates that the lag doesn't decrease, check that the consumers using that consumer group are healthy (you may need to restart them). As a last resort you may need to restart Kafka, Zookeeper and Kafka REST proxy according to the guide. Failover before and republish after the restart.
