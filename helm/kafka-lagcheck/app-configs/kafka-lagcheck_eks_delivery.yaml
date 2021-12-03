@@ -3,7 +3,7 @@ replicaCount: 1
 service:
   name: kafka-lagcheck
 env:
-  WHITELISTED_TOPICS: "Concept"
+  WHITELISTED_TOPICS: "Concept,CombinedPostPublicationEvents,ForcedCombinedPostPublicationEvents"
   BURROW_URL: "http://burrow:8080"
   ERR_LAG_TOLERANCE: 35
   MAX_LAG_TOLERANCE: 1000
