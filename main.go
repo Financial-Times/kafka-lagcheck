@@ -66,6 +66,8 @@ func main() {
 			burrowAddress = burrowAddress[:len(burrowAddress)-1]
 		}
 
+		infoLogger.Printf("Non-monitored topics: %v", *whitelistedTopics)
+
 		healthCheck := newHealthcheck(burrowAddress, *whitelistedTopics, *whitelistedEnvironments, *maxLagTolerance, *errLagTolerance)
 		router := mux.NewRouter()
 		router.Path("/__health").Handler(handlers.MethodHandler{"GET": http.HandlerFunc(healthCheck.Health())})
