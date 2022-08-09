@@ -30,7 +30,7 @@ type healthcheck struct {
 
 func newHealthcheck(burrowUrl string, whitelistedTopics []string, whitelistedEnvs []string, maxLagTolerance int, errLagTolerance int) *healthcheck {
 	return &healthcheck{
-		checkPrefix:       burrowUrl + "/v2/kafka/local/consumer/",
+		checkPrefix:       burrowUrl + "/v3/kafka/local/consumer/",
 		whitelistedTopics: whitelistedTopics,
 		whitelistedEnvs:   whitelistedEnvs,
 		maxLagTolerance:   maxLagTolerance,
