@@ -128,7 +128,7 @@ func (h *healthcheck) consumerLags(consumer string) fthealth.Check {
 		Name:             "Consumer group " + consumer + " is lagging.",
 		PanicGuide:       "https://runbooks.in.ft.com/kafka-lagcheck",
 		Severity:         1,
-		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v2/kafka/local/consumer/" + consumer + "/status",
+		TechnicalSummary: "Consumer group " + consumer + " is lagging. Further info at: __burrow/v3/kafka/local/consumer/" + consumer + "/status",
 		Checker: func() (string, error) {
 			return h.fetchAndCheckConsumerGroupForLags(consumer)
 		},
