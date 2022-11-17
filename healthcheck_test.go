@@ -15,7 +15,7 @@ import (
 
 	status "github.com/Financial-Times/service-status-go/httphandlers"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/jarcoal/httpmock.v1"
+	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
 
 func TestConsumerStatus(t *testing.T) {
